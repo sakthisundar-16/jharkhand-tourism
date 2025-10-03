@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}Tourist Dashboard - Jharkhand Tourism{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-5 pt-4">
+    <!-- Welcome Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="welcome-card bg-primary text-white p-4 rounded">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1 class="mb-2">Welcome to Jharkhand, {{ session.full_name or session.username }}!</h1>
+                        <p class="mb-0 lead">Explore the Land of Forests with our expert local guides. Book your authentic Jharkhand experience today!</p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <i class="fas fa-tree fa-4x opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card text-center p-3">
+                <i class="fas fa-map-marker-alt fa-2x text-primary mb-2"></i>
+                <h4>24</h4>
+                <small class="text-muted">Districts to Explore</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card text-center p-3">
+                <i class="fas fa-users fa-2x text-success mb-2"></i>
+                <h4>{{ guides|length }}</h4>
+                <small class="text-muted">Local Guides Available</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card text-center p-3">
+                <i class="fas fa-calendar-check fa-2x text-warning mb-2"></i>
+                <h4>{{ bookings|length }}</h4>
+                <small class="text-muted">Your Bookings</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card text-center p-3">
+                <i class="fas fa-star fa-2x text-info mb-2"></i>
+                <h4>4.8</h4>
+                <small class="text-muted">Average Rating</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- District Selection -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-map-marked-alt"></i> Choose Your Jharkhand District</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="districtSelect" class="form-label">Select District to Visit:</label>
+                            <select class="form-select" id="districtSelect" onchange="filterGuidesByDistrict()">
+                                <option value="">All Districts</option>
+                                <option value="Ranchi">Ranchi (Capital)</option>
+                                <option value="East Singhbhum">East Singhbhum (Jamshedpur)</option>
+                                <option value="Deoghar">Deoghar</option>
+                                <option value="Dhanbad">Dhanbad</option>
+                                <option value="Hazaribagh">Hazaribagh</option>
+                                <option value="Bokaro">Bokaro</option>
+                                <option value="West Singhbhum">West Singhbhum (Chaibasa)</option>
+                                <option value="Palamu">Palamu</option>
+                                <option value="Giridih">Giridih</option>
+                                <option value="Dumka">Dumka</option>
+                                <option value="Godda">Godda</option>
+                                <option value="Chatra">Chatra</option>
+                                <option value="Garhwa">Garhwa</option>
+                                <option value="Gumla">Gumla</option>
+                                <option value="Jamtara">Jamtara</option>
+                                <option value="Khunti">Khunti</option>
+                                <option value="Koderma">Koderma</option>
+                                <option value="Latehar">Latehar</option>
+                                <option value="Lohardaga">Lohardaga</option>
+                                <option value="Pakur">Pakur</option>
+                                <option value="Ramgarh">Ramgarh</option>
+                                <option value="Sahebganj">Sahebganj</option>
+                                <option value="Saraikela Kharsawan">Saraikela Kharsawan</option>
+                                <option value="Simdega">Simdega</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="tourTypeSelect" class="form-label">Tour Preference:</label>
+                            <select class="form-select" id="tourTypeSelect">
+                                <option value="">All Types</option>
+                                <option value="Wildlife & Nature Tours">🦌 Wildlife & Nature Tours</option>
+                                <option value="Cultural Heritage Tours">🏛️ Cultural Heritage Tours</option>
+                                <option value="Adventure & Trekking">⛰️ Adventure & Trekking</option>
+                                <option value="Photography Tours">📸 Photography Tours</option>
+                                <option value="Spiritual & Temple Tours">🙏 Spiritual & Temple Tours</option>
+                                <option value="Industrial Heritage Tours">🏭 Industrial Heritage Tours</option>
+                                <option value="Tribal Culture Tours">🎭 Tribal Culture Tours</option>
+                                <option value="Waterfall Tours">💧 Waterfall Tours</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Available Guides Section -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-users"></i> Available Local Guides in Jharkhand</h5>
+                </div>
+                <div class="card-body">
+                    {% if guides %}
+                        <div class="row" id="guidesContainer">
+                            {% for guide in guides %}
+                            <div class="col-lg-4 col-md-6 mb-4 guide-card" data-location="{{ guide.location or 'All Jharkhand' }}" data-specialization="{{ guide.specialization or 'General Tourism' }}">
+                                <div class="card h-100 shadow-sm">
+                                    <div class="card-header bg-light">
+                                        <div class="d-flex align-items-center">
+                                            <div class="guide-avatar me-3">
+                                                <i class="fas fa-user-circle fa-3x text-primary"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="mb-1">{{ guide.guide_name or guide.username }}</h6>
+                                                <small class="text-muted">
+                                                    <i class="fas fa-map-pin"></i> {{ guide.location or 'All Jharkhand' }}
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="card-body">
+                                        <div class="guide-details">
+                                            <p class="mb-2">
+                                                <i class="fas fa-star text-warning"></i>
+                                                <strong>Specialization:</strong> {{ guide.specialization or 'General Tourism' }}
+                                            </p>
+
+                                            {% if guide.experience_years %}
+                                            <p class="mb-2">
+                                                <i class="fas fa-clock text-info"></i>
+                                                <strong>Experience:</strong> {{ guide.experience_years }} years
+                                            </p>
+                                            {% endif %}
+
+                                            {% if guide.languages_spoken %}
+                                            <p class="mb-2">
+                                                <i class="fas fa-language text-success"></i>
+                                                <strong>Languages:</strong> {{ guide.languages_spoken }}
+                                            </p>
+                                            {% endif %}
+
+                                            {% if guide.price_per_day %}
+                                            <div class="price-tag mb-3">
+                                                <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded">
+                                                    <span><i class="fas fa-rupee-sign text-success"></i> Per Day Rate:</span>
+                                                    <strong class="text-success">₹{{ guide.price_per_day }}</strong>
+                                                </div>
+                                            </div>
+                                            {% endif %}
+
+                                            <div class="guide-badges mb-3">
+                                                {% if guide.availability_status == 'available' %}
+                                                    <span class="badge bg-success">Available</span>
+                                                {% else %}
+                                                    <span class="badge bg-warning">Busy</span>
+                                                {% endif %}
+
+                                                {% if guide.specialization %}
+                                                    {% if 'Wildlife' in guide.specialization %}
+                                                        <span class="badge bg-success">🦌 Wildlife Expert</span>
+                                                    {% elif 'Cultural' in guide.specialization %}
+                                                        <span class="badge bg-primary">🏛️ Cultural Guide</span>
+                                                    {% elif 'Adventure' in guide.specialization %}
+                                                        <span class="badge bg-warning">⛰️ Adventure Guide</span>
+                                                    {% elif 'Photography' in guide.specialization %}
+                                                        <span class="badge bg-info">📸 Photo Guide</span>
+                                                    {% elif 'Spiritual' in guide.specialization %}
+                                                        <span class="badge bg-secondary">🙏 Spiritual Guide</span>
+                                                    {% endif %}
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="card-footer bg-transparent">
+                                        {% if guide.availability_status == 'available' %}
+                                            <button class="btn btn-primary w-100"
+                                                    onclick="bookGuide('{{ guide.user_id }}', '{{ guide.guide_name or guide.username }}')">
+                                                <i class="fas fa-calendar-plus"></i> Book This Guide
+                                            </button>
+                                        {% else %}
+                                            <button class="btn btn-outline-secondary w-100" disabled>
+                                                <i class="fas fa-calendar-times"></i> Currently Unavailable
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-users fa-4x text-muted mb-3"></i>
+                            <h4 class="text-muted">No Guides Available Yet</h4>
+                            <p class="text-muted">Check back later for local guides in Jharkhand</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- My Bookings Section -->
+    {% if bookings %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-suitcase"></i> My Jharkhand Tour Bookings</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for booking in bookings %}
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card booking-card">
+                                <div class="card-header bg-{{ 'success' if booking.booking_status == 'confirmed' else 'warning' if booking.booking_status == 'pending' else 'info' }}">
+                                    <h6 class="mb-0 text-white">
+                                        Booking #{{ booking.id }} - {{ booking.booking_status.title() }}
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Guide:</strong> {{ booking.guide_name or 'TBD' }}</p>
+                                    <p><strong>Duration:</strong> {{ booking.days_to_stay }} days</p>
+                                    <p><strong>Arrival:</strong> {{ booking.arrival_date.strftime('%d %b, %Y') if booking.arrival_date else 'TBD' }}</p>
+                                    <p><strong>Total Cost:</strong> ₹{{ booking.days_to_stay * 2000 }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.welcome-card {
+    background: linear-gradient(135deg, #28a745, #20c997) !important;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.guide-card {
+    transition: all 0.3s ease;
+}
+
+.guide-card:hover {
+    transform: translateY(-5px);
+}
+
+.guide-avatar {
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.price-tag {
+    border: 2px solid #28a745;
+    border-radius: 10px;
+}
+
+.booking-card {
+    border-left: 4px solid #007bff;
+}
+</style>
+
+<script>
+// Filter guides by district
+function filterGuidesByDistrict() {
+    const selectedDistrict = document.getElementById('districtSelect').value;
+    const selectedTourType = document.getElementById('tourTypeSelect').value;
+    const guideCards = document.querySelectorAll('.guide-card');
+
+    guideCards.forEach(card => {
+        const location = card.dataset.location;
+        const specialization = card.dataset.specialization;
+
+        let showCard = true;
+
+        if (selectedDistrict && !location.includes(selectedDistrict) && location !== 'All Jharkhand') {
+            showCard = false;
+        }
+
+        if (selectedTourType && !specialization.includes(selectedTourType)) {
+            showCard = false;
+        }
+
+        card.style.display = showCard ? 'block' : 'none';
+    });
+}
+
+// Book guide function - redirect to booking page
+function bookGuide(guideId, guideName) {
+    // Redirect to booking page with guide information
+    window.location.href = `/book_guide/${guideId}`;
+}
+
+// Add event listener for tour type filter
+document.getElementById('tourTypeSelect').addEventListener('change', filterGuidesByDistrict);
+</script>
+{% endblock %}

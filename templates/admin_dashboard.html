@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5 pt-4">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-4">
+                <i class="fas fa-cog"></i> Admin Dashboard
+            </h2>
+        </div>
+    </div>
+    
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-users fa-2x mb-2"></i>
+                    <h4>{{ data.users|length }}</h4>
+                    <p>Total Users</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-calendar-check fa-2x mb-2"></i>
+                    <h4>{{ data.bookings|length }}</h4>
+                    <p>Total Bookings</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-map-marked-alt fa-2x mb-2"></i>
+                    <h4>{{ data.users|selectattr('user_type', 'equalto', 'guide')|list|length }}</h4>
+                    <p>Total Guides</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-images fa-2x mb-2"></i>
+                    <h4>{{ data.uploads|length }}</h4>
+                    <p>Content Uploads</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tabs -->
+    <ul class="nav nav-tabs" id="adminTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button">
+                <i class="fas fa-users"></i> Users Management
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="bookings-tab" data-bs-toggle="tab" data-bs-target="#bookings" type="button">
+                <i class="fas fa-calendar-alt"></i> Bookings
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="uploads-tab" data-bs-toggle="tab" data-bs-target="#uploads" type="button">
+                <i class="fas fa-upload"></i> Content Uploads
+            </button>
+        </li>
+    </ul>
+    
+    <div class="tab-content" id="adminTabsContent">
+        <!-- Users Tab -->
+        <div class="tab-pane fade show active" id="users" role="tabpanel">
+            <div class="card">
+                <div class="card-header">
+                    <h5>All Users</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Username</th>
+                                    <th>Full Name</th>
+                                    <th>User Type</th>
+                                    <th>Phone</th>
+                                    <th>Email</th>
+                                    <th>Joined</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in data.users %}
+                                <tr>
+                                    <td>{{ user.id }}</td>
+                                    <td>{{ user.username }}</td>
+                                    <td>{{ user.full_name or 'N/A' }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if user.user_type == 'admin' %}danger{% elif user.user_type == 'guide' %}info{% else %}success{% endif %}">
+                                            {{ user.user_type.title() }}
+                                        </span>
+                                    </td>
+                                    <td>{{ user.phone or 'N/A' }}</td>
+                                    <td>{{ user.email or 'N/A' }}</td>
+                                    <td>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A' }}</td>
+                                    <td>
+                                        {% if user.user_type != 'admin' %}
+                                            <a href="{{ url_for('delete_user', user_id=user.id) }}" 
+                                               class="btn btn-danger btn-sm"
+                                               onclick="return confirm('Are you sure you want to delete this user?')">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bookings Tab -->
+        <div class="tab-pane fade" id="bookings" role="tabpanel">
+            <div class="card">
+                <div class="card-header">
+                    <h5>All Bookings</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Tourist</th>
+                                    <th>Guide</th>
+                                    <th>Tourist Name</th>
+                                    <th>Phone</th>
+                                    <th>Days</th>
+                                    <th>Arrival</th>
+                                    <th>Status</th>
+                                    <th>Booked On</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for booking in data.bookings %}
+                                <tr>
+                                    <td>{{ booking.id }}</td>
+                                    <td>{{ booking.tourist_name }}</td>
+                                    <td>{{ booking.guide_name }}</td>
+                                    <td>{{ booking.tourist_name }}</td>
+                                    <td>{{ booking.phone }}</td>
+                                    <td>{{ booking.days_to_stay }}</td>
+                                    <td>{{ booking.arrival_date.strftime('%Y-%m-%d') if booking.arrival_date else 'N/A' }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if booking.booking_status == 'confirmed' %}success{% elif booking.booking_status == 'pending' %}warning{% else %}secondary{% endif %}">
+                                            {{ booking.booking_status.title() }}
+                                        </span>
+                                    </td>
+                                    <td>{{ booking.created_at.strftime('%Y-%m-%d') if booking.created_at else 'N/A' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Uploads Tab -->
+        <div class="tab-pane fade" id="uploads" role="tabpanel">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Content Uploads</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for upload in data.uploads %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card">
+                                {% if upload.image_path %}
+                                    <img src="{{ url_for('static', filename=upload.image_path) }}" 
+                                         class="card-img-top" style="height: 200px; object-fit: cover;">
+                                {% endif %}
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ upload.title }}</h6>
+                                    <p class="card-text small">{{ upload.description[:100] }}...</p>
+                                    <p class="card-text">
+                                        <small class="text-muted">
+                                            <strong>Type:</strong> {{ upload.upload_type.title() }}<br>
+                                            <strong>Guide:</strong> {{ upload.guide_name }}<br>
+                                            <strong>Location:</strong> {{ upload.location or 'N/A' }}<br>
+                                            <strong>Uploaded:</strong> {{ upload.upload_date.strftime('%Y-%m-%d') if upload.upload_date else 'N/A' }}
+                                        </small>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

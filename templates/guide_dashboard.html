@@ -1,0 +1,683 @@
+{% extends "base.html" %}
+
+{% block title %}Guide Dashboard - Jharkhand Tourism{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-5 pt-4">
+    <!-- Guide Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card bg-dark text-white position-relative overflow-hidden">
+                <div class="card-body p-4">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="guide-avatar me-3">
+                                    <i class="fas fa-user-circle fa-4x text-warning"></i>
+                                </div>
+                                <div>
+                                    <h1 class="mb-1">{{ session.full_name or session.username }}</h1>
+                                    <p class="mb-0 text-warning"><i class="fas fa-tree"></i> Professional Guide - Jharkhand</p>
+                                </div>
+                            </div>
+                            <div class="guide-badges">
+                                <span class="badge bg-success me-2"><i class="fas fa-check-circle"></i> Verified Guide</span>
+                                <span class="badge bg-warning text-dark me-2"><i class="fas fa-star"></i> 4.8 Rating</span>
+                                <span class="badge bg-info"><i class="fas fa-medal"></i> Top Rated</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <div class="guide-quick-stats">
+                                <div class="stat-item mb-2">
+                                    <span class="h4 text-success">{{ bookings|length }}</span>
+                                    <small class="d-block text-muted">Total Tours</small>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="h4 text-info">₹{{ (bookings|length * 2500) if bookings else 0 }}</span>
+                                    <small class="d-block text-muted">Total Earnings</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="position-absolute top-0 end-0 opacity-25">
+                    <i class="fas fa-tree fa-8x text-white"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Navigation Tabs -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <ul class="nav nav-pills nav-fill bg-light rounded p-2" id="guideTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="bookings-tab" data-bs-toggle="pill" data-bs-target="#bookings-panel" type="button">
+                        <i class="fas fa-calendar-check"></i> My Bookings
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="content-tab" data-bs-toggle="pill" data-bs-target="#content-panel" type="button">
+                        <i class="fas fa-camera"></i> Content Manager
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="profile-tab" data-bs-toggle="pill" data-bs-target="#profile-panel" type="button">
+                        <i class="fas fa-user-cog"></i> Profile Settings
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="analytics-tab" data-bs-toggle="pill" data-bs-target="#analytics-panel" type="button">
+                        <i class="fas fa-chart-line"></i> Analytics
+                    </button>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="guideTabsContent">
+        
+        <!-- Bookings Panel -->
+        <div class="tab-pane fade show active" id="bookings-panel" role="tabpanel">
+            <div class="row">
+                <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h3><i class="fas fa-suitcase text-primary"></i> Jharkhand Tourist Bookings Management</h3>
+                        <div class="booking-filters">
+                            <button class="btn btn-outline-primary btn-sm me-2" onclick="filterBookings('all')">All</button>
+                            <button class="btn btn-outline-warning btn-sm me-2" onclick="filterBookings('pending')">Pending</button>
+                            <button class="btn btn-outline-success btn-sm me-2" onclick="filterBookings('confirmed')">Confirmed</button>
+                            <button class="btn btn-outline-info btn-sm" onclick="filterBookings('completed')">Completed</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if bookings %}
+                <div class="row" id="bookingsContainer">
+                    {% for booking in bookings %}
+                    <div class="col-lg-6 col-xl-4 mb-4 booking-card" data-status="{{ booking.booking_status }}">
+                        <div class="card h-100 shadow-sm border-0">
+                            <div class="card-header bg-gradient-{{ 'warning' if booking.booking_status == 'pending' else 'success' if booking.booking_status == 'confirmed' else 'info' if booking.booking_status == 'completed' else 'secondary' }}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0 text-white">
+                                        <i class="fas fa-user"></i> {{ booking.tourist_name }}
+                                    </h6>
+                                    <span class="badge bg-light text-dark">{{ booking.booking_status.title() }}</span>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="booking-details">
+                                    <div class="detail-row mb-2">
+                                        <i class="fas fa-phone text-success me-2"></i>
+                                        <strong>Phone:</strong> {{ booking.phone }}
+                                    </div>
+                                    <div class="detail-row mb-2">
+                                        <i class="fas fa-home text-info me-2"></i>
+                                        <strong>From:</strong> {{ booking.native_place }}
+                                    </div>
+                                    <div class="detail-row mb-2">
+                                        <i class="fas fa-calendar text-primary me-2"></i>
+                                        <strong>Duration:</strong> {{ booking.days_to_stay }} days
+                                    </div>
+                                    <div class="detail-row mb-3">
+                                        <i class="fas fa-calendar-day text-warning me-2"></i>
+                                        <strong>Arrival:</strong> {{ booking.arrival_date.strftime('%d %b, %Y') if booking.arrival_date else 'TBD' }}
+                                    </div>
+                                    <div class="booking-value mb-3">
+                                        <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded">
+                                            <span><i class="fas fa-rupee-sign text-success"></i> Tour Value:</span>
+                                            <strong class="text-success">₹{{ booking.days_to_stay * 2000 }}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-transparent">
+                                {% if booking.booking_status == 'pending' %}
+                                    <div class="d-grid gap-2 d-md-flex">
+                                        <button class="btn btn-success btn-sm flex-fill" 
+                                                data-booking-id="{{ booking.id }}" 
+                                                onclick="updateBookingStatus(this.dataset.bookingId, 'confirmed')">
+                                            <i class="fas fa-check"></i> Accept Tour
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm" 
+                                                data-booking-id="{{ booking.id }}" 
+                                                onclick="updateBookingStatus(this.dataset.bookingId, 'cancelled')">
+                                            <i class="fas fa-times"></i> Decline
+                                        </button>
+                                    </div>
+                                {% elif booking.booking_status == 'confirmed' %}
+                                    <div class="d-grid">
+                                        <button class="btn btn-primary btn-sm" 
+                                                data-booking-id="{{ booking.id }}" 
+                                                onclick="updateBookingStatus(this.dataset.bookingId, 'completed')">
+                                            <i class="fas fa-flag-checkered"></i> Mark as Completed
+                                        </button>
+                                    </div>
+                                {% elif booking.booking_status == 'completed' %}
+                                    <div class="text-center">
+                                        <span class="badge bg-success p-2">
+                                            <i class="fas fa-trophy"></i> Jharkhand Tour Completed Successfully
+                                        </span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body text-center p-5">
+                                <i class="fas fa-calendar-times fa-5x text-muted mb-4"></i>
+                                <h4 class="text-muted mb-3">No Bookings Yet</h4>
+                                <p class="text-muted mb-4">Start getting bookings by improving your profile and sharing amazing Jharkhand content!</p>
+                                <button class="btn btn-primary" onclick="document.getElementById('profile-tab').click()">
+                                    <i class="fas fa-user-edit"></i> Update Profile
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Content Manager Panel -->
+        <div class="tab-pane fade" id="content-panel" role="tabpanel">
+            <div class="row">
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-gradient-warning text-dark">
+                            <h5 class="mb-0"><i class="fas fa-plus-circle"></i> Share Jharkhand Content</h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST" action="{{ url_for('upload_content') }}" enctype="multipart/form-data" id="contentForm">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fas fa-tags"></i> Content Category</label>
+                                    <select class="form-select" name="upload_type" required>
+                                        <option value="">Select category</option>
+                                        <option value="event">🎪 Local Festival/Event</option>
+                                        <option value="photo">🏞️ Scenic Photography</option>
+                                        <option value="location">🎯 Must-Visit Location</option>
+                                        <option value="waterfall">💧 Waterfall Spot</option>
+                                        <option value="temple">🏛️ Temple/Religious Site</option>
+                                        <option value="wildlife">🦌 Wildlife Sanctuary</option>
+                                        <option value="industrial">🏭 Industrial Heritage</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fas fa-heading"></i> Content Title</label>
+                                    <input type="text" class="form-control" name="title" required placeholder="Eye-catching title about Jharkhand...">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fas fa-align-left"></i> Story/Description</label>
+                                    <textarea class="form-control" name="description" rows="4" required placeholder="Tell tourists why this Jharkhand place is special..."></textarea>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold"><i class="fas fa-map-pin"></i> Exact Location</label>
+                                    <select class="form-select" name="location">
+                                        <option value="">Select district</option>
+                                        <option value="Ranchi">Ranchi</option>
+                                        <option value="East Singhbhum">East Singhbhum (Jamshedpur)</option>
+                                        <option value="Deoghar">Deoghar</option>
+                                        <option value="Dhanbad">Dhanbad</option>
+                                        <option value="Hazaribagh">Hazaribagh</option>
+                                        <option value="Bokaro">Bokaro</option>
+                                        <option value="West Singhbhum">West Singhbhum</option>
+                                        <option value="Palamu">Palamu</option>
+                                        <option value="Giridih">Giridih</option>
+                                        <option value="Dumka">Dumka</option>
+                                        <option value="Godda">Godda</option>
+                                        <option value="Chatra">Chatra</option>
+                                        <option value="Garhwa">Garhwa</option>
+                                        <option value="Gumla">Gumla</option>
+                                        <option value="Jamtara">Jamtara</option>
+                                        <option value="Khunti">Khunti</option>
+                                        <option value="Koderma">Koderma</option>
+                                        <option value="Latehar">Latehar</option>
+                                        <option value="Lohardaga">Lohardaga</option>
+                                        <option value="Pakur">Pakur</option>
+                                        <option value="Ramgarh">Ramgarh</option>
+                                        <option value="Sahebganj">Sahebganj</option>
+                                        <option value="Saraikela Kharsawan">Saraikela Kharsawan</option>
+                                        <option value="Simdega">Simdega</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label class="form-label fw-bold"><i class="fas fa-camera"></i> Upload Image</label>
+                                    <input type="file" class="form-control" name="image" accept="image/*" onchange="previewImage(this)">
+                                    <div id="imagePreview" class="mt-2"></div>
+                                    <small class="text-muted">JPG, PNG, GIF up to 5MB</small>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-warning w-100 btn-lg">
+                                    <i class="fas fa-cloud-upload-alt"></i> Share Jharkhand Content
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-8">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="fas fa-images"></i> My Published Jharkhand Content</h5>
+                            <button class="btn btn-outline-primary btn-sm" onclick="loadMyContent()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                        <div class="card-body" id="myContentContainer">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="text-muted mt-2">Loading your Jharkhand content...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Settings Panel -->
+        <div class="tab-pane fade" id="profile-panel" role="tabpanel">
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-gradient-info text-white">
+                            <h5 class="mb-0"><i class="fas fa-user-edit"></i> Jharkhand Guide Profile</h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <form method="POST" action="{{ url_for('update_guide_profile') }}" id="profileForm">
+                                <div class="row">
+                                    <div class="col-md-6 mb-4">
+                                        <label class="form-label fw-bold">
+                                            <i class="fas fa-star text-warning me-2"></i>Guide Specialization *
+                                        </label>
+                                        <select class="form-select form-select-lg" name="specialization" required>
+                                            <option value="">Select your expertise</option>
+                                            <option value="Wildlife & Nature Tours">🦌 Wildlife & Nature Tours</option>
+                                            <option value="Cultural Heritage Tours">🏛️ Cultural Heritage Tours</option>
+                                            <option value="Adventure & Trekking">⛰️ Adventure & Trekking</option>
+                                            <option value="Photography Tours">📸 Photography Tours</option>
+                                            <option value="Spiritual & Temple Tours">🙏 Spiritual & Temple Tours</option>
+                                            <option value="Industrial Heritage Tours">🏭 Industrial Heritage Tours</option>
+                                            <option value="Tribal Culture Tours">🎭 Tribal Culture Tours</option>
+                                            <option value="Waterfall Tours">💧 Waterfall Tours</option>
+                                            <option value="General Tourism">🗺️ General Tourism</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-4">
+                                        <label class="form-label fw-bold">
+                                            <i class="fas fa-clock text-info me-2"></i>Years of Experience *
+                                        </label>
+                                        <div class="input-group input-group-lg">
+                                            <input type="number" class="form-control" name="experience_years" min="0" max="50" placeholder="Enter years" required>
+                                            <span class="input-group-text">years</span>
+                                        </div>
+                                        <small class="text-muted">How many years have you been guiding tourists in Jharkhand?</small>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-4">
+                                        <label class="form-label fw-bold">
+                                            <i class="fas fa-language text-success me-2"></i>Languages You Speak *
+                                        </label>
+                                        <input type="text" class="form-control form-control-lg" name="languages_spoken" 
+                                               placeholder="e.g., Hindi, English, Santali, Mundari" required>
+                                        <small class="text-muted">Include local tribal languages if you speak them</small>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-4">
+                                        <label class="form-label fw-bold">
+                                            <i class="fas fa-map-marker-alt text-danger me-2"></i>Service Area *
+                                        </label>
+                                        <select class="form-select form-select-lg" name="location" required>
+                                            <option value="">Select your area</option>
+                                            <option value="Ranchi District">🌟 Ranchi District (Capital)</option>
+                                            <option value="East Singhbhum">🏭 East Singhbhum (Jamshedpur)</option>
+                                            <option value="Deoghar District">🙏 Deoghar District</option>
+                                            <option value="Dhanbad District">⚫ Dhanbad District</option>
+                                            <option value="Hazaribagh District">🦌 Hazaribagh District</option>
+                                            <option value="Bokaro District">🏭 Bokaro District</option>
+                                            <option value="West Singhbhum">🌳 West Singhbhum</option>
+                                            <option value="Palamu District">🏞️ Palamu District</option>
+                                            <option value="Giridih District">⛰️ Giridih District</option>
+                                            <option value="Dumka District">🏛️ Dumka District</option>
+                                            <option value="Godda District">🌿 Godda District</option>
+                                            <option value="Chatra District">🌾 Chatra District</option>
+                                            <option value="Garhwa District">🌲 Garhwa District</option>
+                                            <option value="Gumla District">🏔️ Gumla District</option>
+                                            <option value="Jamtara District">🏞️ Jamtara District</option>
+                                            <option value="Khunti District">🌳 Khunti District</option>
+                                            <option value="Koderma District">💎 Koderma District</option>
+                                            <option value="Latehar District">🌄 Latehar District</option>
+                                            <option value="Lohardaga District">🏞️ Lohardaga District</option>
+                                            <option value="Pakur District">🌊 Pakur District</option>
+                                            <option value="Ramgarh District">⚫ Ramgarh District</option>
+                                            <option value="Sahebganj District">🛶 Sahebganj District</option>
+                                            <option value="Saraikela Kharsawan">🎭 Saraikela Kharsawan</option>
+                                            <option value="Simdega District">🌲 Simdega District</option>
+                                            <option value="All Jharkhand">🗺️ All Jharkhand</option>
+                                        </select>
+                                        <small class="text-muted">Choose your primary service area in Jharkhand</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-md-8 mb-4">
+                                        <label class="form-label fw-bold">
+                                            <i class="fas fa-rupee-sign text-warning me-2"></i>Daily Service Rate *
+                                        </label>
+                                        <div class="input-group input-group-lg">
+                                            <span class="input-group-text bg-warning text-dark">₹</span>
+                                            <input type="number" class="form-control" name="price_per_day" min="500" max="15000" placeholder="2500" required>
+                                            <span class="input-group-text">per day</span>
+                                        </div>
+                                        <div class="mt-2">
+                                            <small class="text-muted me-3">💡 Recommended: ₹1500-3500 per day</small>
+                                            <small class="text-info">💰 Higher rates for specialized Jharkhand tours</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-4 mb-4 d-flex align-items-end">
+                                        <button type="submit" class="btn btn-info btn-lg w-100 shadow-sm">
+                                            <i class="fas fa-save me-2"></i>Update Profile
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Jharkhand-Specific Information -->
+                                <div class="row mt-4">
+                                    <div class="col-12">
+                                        <div class="alert alert-info border-0" role="alert">
+                                            <div class="d-flex align-items-start">
+                                                <i class="fas fa-tree fa-2x text-success me-3 mt-1"></i>
+                                                <div>
+                                                    <h6 class="alert-heading mb-2">Jharkhand Guide Tips:</h6>
+                                                    <ul class="mb-0 small">
+                                                        <li>Highlight expertise in waterfalls, wildlife sanctuaries, and tribal culture</li>
+                                                        <li>Mention knowledge of industrial heritage (Jamshedpur, Bokaro)</li>
+                                                        <li>Include experience with religious sites (Baidyanath Dham, Jagannath Temple)</li>
+                                                        <li>Add tribal language skills to attract cultural tourists</li>
+                                                        <li>Emphasize eco-tourism and nature photography expertise</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-gradient-success text-white">
+                            <h5 class="mb-0"><i class="fas fa-chart-line"></i> Profile Strength</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center mb-4">
+                                <div class="profile-score-circle">
+                                    <span class="h2 text-success">85%</span>
+                                </div>
+                                <p class="text-muted mt-2">Profile Completeness</p>
+                            </div>
+
+                            <div class="progress mb-3" style="height: 10px;">
+                                <div class="progress-bar bg-success" style="width: 85%"></div>
+                            </div>
+
+                            <div class="checklist">
+                                <h6 class="mb-3">Boost Your Jharkhand Guide Profile:</h6>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" checked disabled>
+                                    <label class="form-check-label text-success">
+                                        <i class="fas fa-check me-1"></i> Basic information added
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" disabled>
+                                    <label class="form-check-label text-muted">
+                                        <i class="fas fa-times me-1"></i> Add Jharkhand specialization
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" disabled>
+                                    <label class="form-check-label text-muted">
+                                        <i class="fas fa-times me-1"></i> Set competitive rates
+                                    </label>
+                                </div>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" disabled>
+                                    <label class="form-check-label text-muted">
+                                        <i class="fas fa-times me-1"></i> Upload Jharkhand content photos
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Jharkhand Tourism Stats -->
+                            <div class="mt-4 p-3 bg-light rounded">
+                                <h6><i class="fas fa-info-circle text-info"></i> Jharkhand Tourism Facts</h6>
+                                <div class="small">
+                                    <p class="mb-1"><i class="fas fa-water text-blue"></i> <strong>100+</strong> Waterfalls</p>
+                                    <p class="mb-1"><i class="fas fa-tree text-success"></i> <strong>29%</strong> Forest Cover</p>
+                                    <p class="mb-1"><i class="fas fa-industry text-dark"></i> <strong>40%</strong> India's Minerals</p>
+                                    <p class="mb-0"><i class="fas fa-users text-primary"></i> <strong>32</strong> Tribal Communities</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Panel -->
+        <div class="tab-pane fade" id="analytics-panel" role="tabpanel">
+            <div class="row">
+                <div class="col-md-3 mb-4">
+                    <div class="card border-0 shadow-sm text-center">
+                        <div class="card-body">
+                            <i class="fas fa-eye fa-3x text-info mb-3"></i>
+                            <h3 class="text-info">247</h3>
+                            <p class="text-muted mb-0">Profile Views</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="card border-0 shadow-sm text-center">
+                        <div class="card-body">
+                            <i class="fas fa-handshake fa-3x text-success mb-3"></i>
+                            <h3 class="text-success">{{ bookings|length }}</h3>
+                            <p class="text-muted mb-0">Jharkhand Tours</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="card border-0 shadow-sm text-center">
+                        <div class="card-body">
+                            <i class="fas fa-rupee-sign fa-3x text-warning mb-3"></i>
+                            <h3 class="text-warning">₹{{ (bookings|length * 2500) if bookings else 0 }}</h3>
+                            <p class="text-muted mb-0">Total Earned</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <div class="card border-0 shadow-sm text-center">
+                        <div class="card-body">
+                            <i class="fas fa-star fa-3x text-primary mb-3"></i>
+                            <h3 class="text-primary">4.8</h3>
+                            <p class="text-muted mb-0">Guide Rating</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Content Modal -->
+<div class="modal fade" id="editContentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit"></i> Edit Jharkhand Content</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editContentForm" enctype="multipart/form-data">
+                    <input type="hidden" id="editContentId">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Content Category</label>
+                        <select class="form-select" name="upload_type" id="editUploadType" required>
+                            <option value="">Select category</option>
+                            <option value="event">🎪 Local Festival/Event</option>
+                            <option value="photo">🏞️ Scenic Photography</option>
+                            <option value="location">🎯 Must-Visit Location</option>
+                            <option value="waterfall">💧 Waterfall Spot</option>
+                            <option value="temple">🏛️ Temple/Religious Site</option>
+                            <option value="wildlife">🦌 Wildlife Sanctuary</option>
+                            <option value="industrial">🏭 Industrial Heritage</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Content Title</label>
+                        <input type="text" class="form-control" name="title" id="editTitle" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Story/Description</label>
+                        <textarea class="form-control" name="description" id="editDescription" rows="4" required></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Jharkhand District</label>
+                        <select class="form-select" name="location" id="editLocation">
+                            <option value="">Select district</option>
+                            <option value="Ranchi">Ranchi</option>
+                            <option value="East Singhbhum">East Singhbhum</option>
+                            <option value="Deoghar">Deoghar</option>
+                            <option value="Dhanbad">Dhanbad</option>
+                            <option value="Hazaribagh">Hazaribagh</option>
+                            <option value="Bokaro">Bokaro</option>
+                            <!-- Add other districts as needed -->
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Update Image (Optional)</label>
+                        <input type="file" class="form-control" name="image" id="editImage" accept="image/*">
+                        <small class="text-muted">Leave empty to keep current image</small>
+                        <div id="currentImagePreview" class="mt-2"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="updateContent()">
+                    <i class="fas fa-save"></i> Update Content
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.guide-avatar {
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+}
+
+.guide-badges .badge {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.booking-card {
+    transition: transform 0.2s ease;
+}
+
+.booking-card:hover {
+    transform: translateY(-5px);
+}
+
+.nav-pills .nav-link {
+    border-radius: 25px;
+    padding: 12px 20px;
+    margin: 0 5px;
+    transition: all 0.3s ease;
+}
+
+.nav-pills .nav-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.nav-pills .nav-link.active {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    box-shadow: 0 5px 15px rgba(0,123,255,0.3);
+}
+
+.profile-score-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #28a745, #20c997);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    color: white;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+}
+
+.bg-gradient-info {
+    background: linear-gradient(135deg, #17a2b8, #138496) !important;
+}
+
+.bg-gradient-success {
+    background: linear-gradient(135deg, #28a745, #1e7e34) !important;
+}
+
+.bg-gradient-warning {
+    background: linear-gradient(135deg, #ffc107, #e0a800) !important;
+}
+
+.form-select-lg, .form-control-lg {
+    border-radius: 10px;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+
+.form-select-lg:focus, .form-control-lg:focus {
+    border-color: #17a2b8;
+    box-shadow: 0 0 0 0.2rem rgba(23, 162, 184, 0.25);
+}
+
+.btn-info.btn-lg {
+    border-radius: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+}
+
+.btn-info.btn-lg:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(23, 162, 184, 0.3);
+}
+</style>
+
+<script src="{{ url_for('static', filename='js/guide-dashboard.js') }}"></script>
+{% endblock %}

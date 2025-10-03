@@ -1,0 +1,501 @@
+{% extends "base.html" %}
+
+{% block title %}Tourist Registration - Jharkhand Tourism{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow-lg border-0">
+                <div class="card-header text-center bg-gradient-primary text-white py-4">
+                    <div class="header-content">
+                        <i class="fas fa-suitcase fa-3x mb-2"></i>
+                        <h3 class="mb-1">Explore Jharkhand with Local Guides</h3>
+                        <p class="mb-0">Discover the Land of Forests through authentic experiences with certified local guides</p>
+                    </div>
+                </div>
+                <div class="card-body p-4">
+                    
+                    <!-- Welcome Section -->
+                    <div class="welcome-section mb-4">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h5 class="text-primary mb-3">
+                                    <i class="fas fa-map-marked-alt me-2"></i>Why Explore Jharkhand?
+                                </h5>
+                                <div class="benefits-list">
+                                    <div class="benefit-item mb-2">
+                                        <i class="fas fa-water text-info me-2"></i>
+                                        <span>Visit stunning waterfalls like Hundru Falls and Dassam Falls</span>
+                                    </div>
+                                    <div class="benefit-item mb-2">
+                                        <i class="fas fa-place-of-worship text-warning me-2"></i>
+                                        <span>Experience spiritual journey at Baidyanath Dham</span>
+                                    </div>
+                                    <div class="benefit-item mb-2">
+                                        <i class="fas fa-industry text-dark me-2"></i>
+                                        <span>Explore industrial heritage in Jamshedpur and Bokaro</span>
+                                    </div>
+                                    <div class="benefit-item mb-2">
+                                        <i class="fas fa-users text-success me-2"></i>
+                                        <span>Connect with vibrant tribal cultures and traditions</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <div class="tourist-stats">
+                                    <div class="stat-item mb-2">
+                                        <div class="stat-number text-primary">24</div>
+                                        <div class="stat-label">Districts to Explore</div>
+                                    </div>
+                                    <div class="stat-item mb-2">
+                                        <div class="stat-number text-success">100+</div>
+                                        <div class="stat-label">Tourist Attractions</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-number text-info">50+</div>
+                                        <div class="stat-label">Expert Guides</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <!-- Registration Form -->
+                    <form method="POST" action="{{ url_for('register_tourist') }}" id="touristRegistrationForm">
+                        <input type="hidden" name="user_type" value="tourist">
+
+                        <!-- Personal Information -->
+                        <div class="form-section mb-4">
+                            <h5 class="section-title mb-3">
+                                <i class="fas fa-user text-primary me-2"></i>Personal Information
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Full Name *</label>
+                                    <input type="text" class="form-control form-control-lg" name="full_name" required 
+                                           placeholder="Enter your full name">
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Username *</label>
+                                    <input type="text" class="form-control form-control-lg" name="username" required 
+                                           placeholder="Choose a unique username">
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Password *</label>
+                                    <input type="password" class="form-control form-control-lg" name="password" required 
+                                           placeholder="Create a strong password" minlength="6">
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Phone Number *</label>
+                                    <input type="tel" class="form-control form-control-lg" name="phone" required 
+                                           placeholder="Enter your mobile number" pattern="[0-9]{10}">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Email Address *</label>
+                                <input type="email" class="form-control form-control-lg" name="email" required 
+                                       placeholder="Enter your email address">
+                            </div>
+                        </div>
+
+                        <!-- Travel Preferences (Optional) -->
+                        <div class="form-section mb-4">
+                            <h5 class="section-title mb-3">
+                                <i class="fas fa-compass text-success me-2"></i>Travel Preferences <small class="text-muted">(Optional)</small>
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Interested Districts</label>
+                                    <select class="form-select form-select-lg" name="interested_districts">
+                                        <option value="">Select districts you want to visit</option>
+                                        <optgroup label="Popular Destinations">
+                                            <option value="Ranchi District">🌟 Ranchi District (Capital)</option>
+                                            <option value="East Singhbhum">🏭 East Singhbhum (Jamshedpur)</option>
+                                            <option value="Deoghar District">🙏 Deoghar District (Baidyanath Dham)</option>
+                                            <option value="Hazaribagh District">🦌 Hazaribagh District (National Park)</option>
+                                            <option value="West Singhbhum">🌳 West Singhbhum (Betla National Park)</option>
+                                        </optgroup>
+                                        <optgroup label="Other Districts">
+                                            <option value="Dhanbad District">⚫ Dhanbad District</option>
+                                            <option value="Bokaro District">🏭 Bokaro District</option>
+                                            <option value="Palamu District">🏞️ Palamu District</option>
+                                            <option value="Giridih District">⛰️ Giridih District</option>
+                                            <option value="Dumka District">🏛️ Dumka District</option>
+                                        </optgroup>
+                                        <optgroup label="Explore All">
+                                            <option value="All Jharkhand">🗺️ All Jharkhand</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Tour Type Preference</label>
+                                    <select class="form-select form-select-lg" name="tour_preference">
+                                        <option value="">Select your preferred tour type</option>
+                                        <option value="Wildlife & Nature Tours">🦌 Wildlife & Nature Tours</option>
+                                        <option value="Cultural Heritage Tours">🏛️ Cultural Heritage Tours</option>
+                                        <option value="Adventure & Trekking">⛰️ Adventure & Trekking</option>
+                                        <option value="Photography Tours">📸 Photography Tours</option>
+                                        <option value="Spiritual & Temple Tours">🙏 Spiritual & Temple Tours</option>
+                                        <option value="Industrial Heritage Tours">🏭 Industrial Heritage Tours</option>
+                                        <option value="Tribal Culture Tours">🎭 Tribal Culture Tours</option>
+                                        <option value="Waterfall Tours">💧 Waterfall Tours</option>
+                                        <option value="General Tourism">🗺️ General Tourism</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Budget Range (per day)</label>
+                                    <select class="form-select form-select-lg" name="budget_range">
+                                        <option value="">Select your budget</option>
+                                        <option value="budget">💰 Budget (₹1000-2000)</option>
+                                        <option value="mid-range">💵 Mid-range (₹2000-4000)</option>
+                                        <option value="premium">💎 Premium (₹4000+)</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Group Size</label>
+                                    <select class="form-select form-select-lg" name="group_size">
+                                        <option value="">Select group size</option>
+                                        <option value="solo">👤 Solo Traveler</option>
+                                        <option value="couple">👥 Couple</option>
+                                        <option value="small-group">👪 Small Group (3-5)</option>
+                                        <option value="large-group">👥 Large Group (6+)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Jharkhand Highlights -->
+                        <div class="form-section mb-4">
+                            <h5 class="section-title mb-3">
+                                <i class="fas fa-star text-warning me-2"></i>What Awaits You in Jharkhand
+                            </h5>
+                            
+                            <div class="highlights-grid">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <div class="highlight-card p-3 bg-light rounded">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-water fa-2x text-info me-3"></i>
+                                                <div>
+                                                    <h6 class="mb-1">Spectacular Waterfalls</h6>
+                                                    <small class="text-muted">Hundru Falls (98m), Dassam Falls, Jonha Falls</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <div class="highlight-card p-3 bg-light rounded">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-place-of-worship fa-2x text-warning me-3"></i>
+                                                <div>
+                                                    <h6 class="mb-1">Sacred Temples</h6>
+                                                    <small class="text-muted">Baidyanath Jyotirlinga, Jagannath Temple</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <div class="highlight-card p-3 bg-light rounded">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-paw fa-2x text-success me-3"></i>
+                                                <div>
+                                                    <h6 class="mb-1">Wildlife Sanctuaries</h6>
+                                                    <small class="text-muted">Betla National Park, Hazaribagh National Park</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <div class="highlight-card p-3 bg-light rounded">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-industry fa-2x text-dark me-3"></i>
+                                                <div>
+                                                    <h6 class="mb-1">Industrial Heritage</h6>
+                                                    <small class="text-muted">Steel City Jamshedpur, Bokaro Steel Plant</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Terms and Registration -->
+                        <div class="form-section mb-4">
+                            <div class="terms-section p-3 bg-primary bg-opacity-10 rounded">
+                                <h6 class="text-primary mb-2">
+                                    <i class="fas fa-shield-alt me-1"></i>Your Safety & Experience:
+                                </h6>
+                                <div class="row small">
+                                    <div class="col-md-6">
+                                        <ul class="mb-0">
+                                            <li>Verified and experienced local guides</li>
+                                            <li>Safe and secure booking process</li>
+                                            <li>24/7 customer support</li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <ul class="mb-0">
+                                            <li>Authentic local experiences</li>
+                                            <li>Flexible tour customization</li>
+                                            <li>Best price guarantee</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" id="agreeTerms" required>
+                                <label class="form-check-label" for="agreeTerms">
+                                    I agree to the terms and conditions and privacy policy of Jharkhand Tourism Platform.
+                                </label>
+                            </div>
+
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="newsletterSubscribe">
+                                <label class="form-check-label" for="newsletterSubscribe">
+                                    Subscribe to our newsletter for exclusive Jharkhand travel deals and updates.
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                            <button type="submit" class="btn btn-primary btn-lg px-5">
+                                <i class="fas fa-user-plus me-2"></i>Join Jharkhand Tourism
+                            </button>
+                            <a href="{{ url_for('login_tourist') }}" class="btn btn-outline-secondary btn-lg px-4">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Login
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #007bff, #0056b3) !important;
+}
+
+.header-content {
+    animation: fadeInUp 1s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.welcome-section {
+    border-left: 4px solid #007bff;
+    padding-left: 1rem;
+}
+
+.benefit-item {
+    font-size: 0.95rem;
+    color: #495057;
+}
+
+.tourist-stats {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    padding: 1.5rem;
+    border-radius: 10px;
+    border: 2px solid #dee2e6;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.stat-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.form-section {
+    background: #fafbfc;
+    padding: 1.5rem;
+    border-radius: 10px;
+    border: 1px solid #e9ecef;
+}
+
+.section-title {
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 0.5rem;
+}
+
+.form-control-lg, .form-select-lg {
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+
+.form-control-lg:focus, .form-select-lg:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.highlight-card {
+    border: 1px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+
+.highlight-card:hover {
+    background-color: #ffffff !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.terms-section {
+    border: 1px solid #b8daff;
+}
+
+.btn-primary.btn-lg {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    border: none;
+    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+    transition: all 0.3s ease;
+}
+
+.btn-primary.btn-lg:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 123, 255, 0.4);
+}
+
+.form-check-input:checked {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .tourist-stats {
+        margin-top: 1rem;
+    }
+    
+    .stat-number {
+        font-size: 1.5rem;
+    }
+    
+    .form-section {
+        padding: 1rem;
+    }
+    
+    .highlights-grid .col-md-6 {
+        margin-bottom: 0.5rem;
+    }
+    
+    .d-grid.gap-2.d-md-flex > * {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('touristRegistrationForm');
+    const passwordInput = document.querySelector('input[name="password"]');
+    const phoneInput = document.querySelector('input[name="phone"]');
+    
+    // Form validation
+    form.addEventListener('submit', function(e) {
+        const agreeTerms = document.getElementById('agreeTerms').checked;
+        
+        if (!agreeTerms) {
+            e.preventDefault();
+            alert('Please agree to the terms and conditions to continue.');
+            return false;
+        }
+        
+        // Validate password strength
+        if (passwordInput.value.length < 6) {
+            e.preventDefault();
+            alert('Password must be at least 6 characters long.');
+            passwordInput.focus();
+            return false;
+        }
+        
+        // Validate phone number
+        if (phoneInput.value && !/^[0-9]{10}$/.test(phoneInput.value)) {
+            e.preventDefault();
+            alert('Please enter a valid 10-digit phone number.');
+            phoneInput.focus();
+            return false;
+        }
+        
+        return true;
+    });
+    
+    // Phone number formatting
+    phoneInput.addEventListener('input', function() {
+        // Remove non-numeric characters
+        let value = this.value.replace(/\D/g, '');
+        
+        // Limit to 10 digits
+        if (value.length > 10) {
+            value = value.slice(0, 10);
+        }
+        
+        this.value = value;
+    });
+    
+    // Dynamic recommendations based on preferences
+    const tourPreference = document.querySelector('select[name="tour_preference"]');
+    const interestedDistricts = document.querySelector('select[name="interested_districts"]');
+    
+    tourPreference.addEventListener('change', function() {
+        const selectedTour = this.value;
+        
+        // Suggest districts based on tour type
+        if (selectedTour.includes('Wildlife')) {
+            interestedDistricts.value = 'Hazaribagh District';
+        } else if (selectedTour.includes('Spiritual')) {
+            interestedDistricts.value = 'Deoghar District';
+        } else if (selectedTour.includes('Industrial')) {
+            interestedDistricts.value = 'East Singhbhum';
+        } else if (selectedTour.includes('Waterfall')) {
+            interestedDistricts.value = 'Ranchi District';
+        }
+    });
+    
+    // Welcome animation
+    setTimeout(function() {
+        document.querySelectorAll('.highlight-card').forEach(function(card, index) {
+            setTimeout(function() {
+                card.style.animation = 'fadeInUp 0.6s ease-out forwards';
+            }, index * 100);
+        });
+    }, 500);
+});
+</script>
+{% endblock %}

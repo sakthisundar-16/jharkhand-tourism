@@ -1,0 +1,1793 @@
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+import mysql.connector
+from mysql.connector import Error
+from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
+import os
+from datetime import datetime, timedelta
+from config import Config
+
+from functools import wraps
+def require_user_type(user_type):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'user_id' not in session:
+                flash('Please login to access this page.')
+                return redirect(url_for('login'))
+            
+            if session.get('user_type') != user_type:
+                flash(f'Access denied. This page is only for {user_type}s.')
+                return redirect(url_for('login'))
+            
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+app = Flask(__name__)
+app.config.from_object(Config)
+
+# File upload configuration
+UPLOAD_FOLDER = 'static/uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Ensure upload directory exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def get_db_connection():
+    try:
+        connection = mysql.connector.connect(
+            host=app.config['MYSQL_HOST'],
+            user=app.config['MYSQL_USER'],
+            password=app.config['MYSQL_PASSWORD'],
+            database=app.config['MYSQL_DB'],
+            charset=app.config['MYSQL_CHARSET'],
+            auth_plugin=app.config['MYSQL_AUTH_PLUGIN']
+        )
+        return connection
+    except Error as e:
+        print(f"Error connecting to MySQL: {e}")
+        return None
+
+@app.route('/')
+def index():
+    # Get published content from guides
+    connection = get_db_connection()
+    published_content = []
+    
+    if connection:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            # Fetch latest published content with guide information
+            cursor.execute("""
+                SELECT gu.*, u.full_name as guide_name, u.username as guide_username
+                FROM guide_uploads gu 
+                JOIN users u ON gu.guide_id = u.id 
+                WHERE u.user_type = 'guide'
+                ORDER BY gu.upload_date DESC 
+                LIMIT 12
+            """)
+            published_content = cursor.fetchall()
+        except Exception as e:
+            print(f"Error fetching content: {e}")
+        finally:
+            cursor.close()
+            connection.close()
+    
+    return render_template('index.html', published_content=published_content)
+
+
+# Tourist Login Route
+@app.route('/login/tourist', methods=['GET', 'POST'])
+def login_tourist():
+    if request.method == 'POST':
+        user_type = 'tourist'
+        username = request.form['username']
+        password = request.form['password']
+
+        connection = get_db_connection()
+        if connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM users WHERE username = %s AND user_type = %s",
+                         (username, user_type))
+            user = cursor.fetchone()
+
+            if user and user['password'] == password:  # In production, use hashed passwords
+                session['user_id'] = user['id']
+                session['username'] = user['username']
+                session['user_type'] = user['user_type']
+                session['full_name'] = user['full_name']
+
+                cursor.close()
+                connection.close()
+                flash('Tourist login successful!')
+                return redirect(url_for('tourist_dashboard'))
+            else:
+                flash('Invalid tourist credentials! Please check your username and password.')
+
+            cursor.close()
+            connection.close()
+
+    return render_template('login_tourist.html')
+
+# Guide Login Route
+@app.route('/login/guide', methods=['GET', 'POST'])
+def login_guide():
+    if request.method == 'POST':
+        user_type = 'guide'
+        username = request.form['username']
+        password = request.form['password']
+
+        connection = get_db_connection()
+        if connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM users WHERE username = %s AND user_type = %s",
+                         (username, user_type))
+            user = cursor.fetchone()
+
+            if user and user['password'] == password:  # In production, use hashed passwords
+                session['user_id'] = user['id']
+                session['username'] = user['username']
+                session['user_type'] = user['user_type']
+                session['full_name'] = user['full_name']
+
+                cursor.close()
+                connection.close()
+                flash('Guide login successful!')
+                return redirect(url_for('guide_dashboard'))
+            else:
+                flash('Invalid guide credentials! Please check your username and password.')
+
+            cursor.close()
+            connection.close()
+
+    return render_template('login_guide.html')
+
+# Keep the original login route for backward compatibility (redirects to tourist login)
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    return redirect(url_for('login_tourist'))
+
+@app.route('/register', methods=['POST'])
+def register():
+    user_type = request.form['user_type']
+    
+    # Prevent admin registration
+    if user_type == 'admin':
+        flash('Admin registration is not allowed!')
+        return redirect(url_for('login'))
+    
+    # Validate user type
+    if user_type not in ['tourist', 'guide']:
+        flash('Invalid registration type!')
+        return redirect(url_for('login'))
+    
+    username = request.form['username']
+    password = request.form['password']
+    full_name = request.form['full_name']
+    phone = request.form['phone']
+    email = request.form['email']
+    
+    connection = get_db_connection()
+    if connection:
+        cursor = connection.cursor()
+        try:
+            # Check if username already exists
+            cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+            if cursor.fetchone():
+                flash('Username already exists! Please choose a different username.')
+                return redirect(url_for('login'))
+            
+            # Insert new user with specific user type
+            cursor.execute("""INSERT INTO users (username, password, user_type, full_name, phone, email) 
+                            VALUES (%s, %s, %s, %s, %s, %s)""",
+                         (username, password, user_type, full_name, phone, email))
+            
+            user_id = cursor.lastrowid
+            
+            # If registering as guide, create guide profile automatically
+            if user_type == 'guide':
+                cursor.execute("""INSERT INTO guides (user_id, specialization, experience_years, 
+                                languages_spoken, location, price_per_day, availability_status) 
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                             (user_id, 'General Tourism', 1, 'Hindi, English', 'Arunachal Pradesh', 2000.00, 'available'))
+            
+            connection.commit()
+            flash(f'{user_type.title()} registration successful! Please login with your credentials.')
+        except Error as e:
+            flash(f'Registration failed: {e}')
+        finally:
+            cursor.close()
+            connection.close()
+    
+    return redirect(url_for('login_tourist'))
+
+# Tourist Registration Route
+@app.route('/register/tourist', methods=['GET', 'POST'])
+def register_tourist():
+    if request.method == 'POST':
+        user_type = 'tourist'
+        username = request.form['username']
+        password = request.form['password']
+        full_name = request.form['full_name']
+        phone = request.form['phone']
+        email = request.form['email']
+
+        connection = get_db_connection()
+        if connection:
+            cursor = connection.cursor()
+            try:
+                # Check if username already exists
+                cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+                if cursor.fetchone():
+                    flash('Username already exists! Please choose a different username.')
+                    return redirect(url_for('register_tourist'))
+
+                # Insert new tourist user
+                cursor.execute("""INSERT INTO users (username, password, user_type, full_name, phone, email)
+                                VALUES (%s, %s, %s, %s, %s, %s)""",
+                             (username, password, user_type, full_name, phone, email))
+
+                connection.commit()
+                flash('Tourist registration successful! Please login with your credentials.')
+                return redirect(url_for('login_tourist'))
+            except Error as e:
+                flash(f'Registration failed: {e}')
+            finally:
+                cursor.close()
+                connection.close()
+
+    return render_template('register_tourist.html')
+
+# Guide Registration Route
+@app.route('/register/guide', methods=['GET', 'POST'])
+def register_guide():
+    if request.method == 'POST':
+        user_type = 'guide'
+        username = request.form['username']
+        password = request.form['password']
+        full_name = request.form['full_name']
+        phone = request.form['phone']
+        email = request.form['email']
+        specialization = request.form.get('specialization', 'General Tourism')
+        experience_years = request.form.get('experience_years', 1)
+        languages_spoken = request.form.get('languages_spoken', 'Hindi, English')
+        price_per_day = request.form.get('price_per_day', 2000)
+        location = request.form.get('location', 'Arunachal Pradesh')
+
+        connection = get_db_connection()
+        if connection:
+            cursor = connection.cursor()
+            try:
+                # Check if username already exists
+                cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+                if cursor.fetchone():
+                    flash('Username already exists! Please choose a different username.')
+                    return redirect(url_for('register_guide'))
+
+                # Insert new guide user
+                cursor.execute("""INSERT INTO users (username, password, user_type, full_name, phone, email)
+                                VALUES (%s, %s, %s, %s, %s, %s)""",
+                             (username, password, user_type, full_name, phone, email))
+
+                user_id = cursor.lastrowid
+
+                # Create guide profile automatically
+                cursor.execute("""INSERT INTO guides (user_id, specialization, experience_years,
+                                languages_spoken, location, price_per_day, availability_status)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                             (user_id, specialization, experience_years, languages_spoken,
+                              location, price_per_day, 'available'))
+
+                connection.commit()
+                flash('Guide registration successful! Please login with your credentials.')
+                return redirect(url_for('login_guide'))
+            except Error as e:
+                flash(f'Registration failed: {e}')
+            finally:
+                cursor.close()
+                connection.close()
+
+    return render_template('register_guide.html')
+
+@app.route('/tourist_dashboard')
+@require_user_type('tourist')
+def tourist_dashboard():
+    # Get available guides
+    connection = get_db_connection()
+    guides = []
+    if connection:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("""SELECT u.id, u.full_name, g.specialization, g.experience_years, 
+                         g.languages_spoken, g.location, g.price_per_day, g.rating
+                         FROM users u JOIN guides g ON u.id = g.user_id 
+                         WHERE g.availability_status = 'available' AND u.user_type = 'guide'""")
+        guides = cursor.fetchall()
+        cursor.close()
+        connection.close()
+    
+    return render_template('tourist_dashboard.html', guides=guides)
+    
+
+@app.route('/book_guide', methods=['POST'])
+@require_user_type('tourist')
+def book_guide():
+    tourist_id = session['user_id']
+    guide_id = request.form['guide_id']
+    tourist_name = request.form['tourist_name']
+    native_place = request.form['native_place']
+    phone = request.form['phone']
+    days_to_stay = request.form['days_to_stay']
+    arrival_date = request.form['arrival_date']
+    
+    # Calculate departure date
+    arrival = datetime.strptime(arrival_date, '%Y-%m-%d')
+    departure = arrival + timedelta(days=int(days_to_stay))
+    
+    connection = get_db_connection()
+    if connection:
+        cursor = connection.cursor()
+        try:
+            # Verify the guide exists and is actually a guide
+            cursor.execute("SELECT id FROM users WHERE id = %s AND user_type = 'guide'", (guide_id,))
+            if not cursor.fetchone():
+                flash('Invalid guide selection!')
+                return redirect(url_for('tourist_dashboard'))
+            
+            cursor.execute("""INSERT INTO bookings (tourist_id, guide_id, tourist_name, native_place, 
+                            phone, days_to_stay, arrival_date, departure_date) 
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                         (tourist_id, guide_id, tourist_name, native_place, phone, 
+                          days_to_stay, arrival_date, departure.date()))
+            connection.commit()
+            flash('Booking request sent successfully!')
+        except Error as e:
+            flash(f'Booking failed: {e}')
+        finally:
+            cursor.close()
+            connection.close()
+    
+    return redirect(url_for('tourist_dashboard'))
+
+@app.route('/guide_dashboard')
+@require_user_type('guide')
+def guide_dashboard():
+    guide_id = session['user_id']
+    
+    # Get bookings for this guide
+    connection = get_db_connection()
+    bookings = []
+    if connection:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("""SELECT b.*, u.username as tourist_username 
+                         FROM bookings b JOIN users u ON b.tourist_id = u.id 
+                         WHERE b.guide_id = %s ORDER BY b.created_at DESC""", (guide_id,))
+        bookings = cursor.fetchall()
+        cursor.close()
+        connection.close()
+    
+    return render_template('guide_dashboard.html', bookings=bookings)
+
+@app.route('/update_guide_profile', methods=['POST'])
+@require_user_type('guide')
+def update_guide_profile():
+    user_id = session['user_id']
+    specialization = request.form.get('specialization', '')
+    experience_years = request.form.get('experience_years', 0)
+    languages_spoken = request.form.get('languages_spoken', '')
+    location = request.form.get('location', '')
+    price_per_day = request.form.get('price_per_day', 0)
+    
+    connection = get_db_connection()
+    if connection:
+        cursor = connection.cursor()
+        try:
+            # First check if guide profile exists
+            cursor.execute("SELECT id FROM guides WHERE user_id = %s", (user_id,))
+            guide_exists = cursor.fetchone()
+            
+            if guide_exists:
+                # Update existing profile
+                cursor.execute("""UPDATE guides SET specialization = %s, experience_years = %s, 
+                                languages_spoken = %s, location = %s, price_per_day = %s 
+                                WHERE user_id = %s""",
+                             (specialization, experience_years, languages_spoken, location, price_per_day, user_id))
+                flash('Profile updated successfully!')
+            else:
+                # Create new profile if doesn't exist
+                cursor.execute("""INSERT INTO guides (user_id, specialization, experience_years, 
+                                languages_spoken, location, price_per_day, availability_status) 
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                             (user_id, specialization, experience_years, languages_spoken, location, price_per_day, 'available'))
+                flash('Profile created successfully!')
+            
+            connection.commit()
+        except Exception as e:
+            flash(f'Profile update failed: {str(e)}')
+            print(f"Database error: {e}")
+        finally:
+            cursor.close()
+            connection.close()
+    else:
+        flash('Database connection failed!')
+    
+    return redirect(url_for('guide_dashboard'))
+
+
+@app.route('/update_booking_status/<int:booking_id>/<status>')
+@require_user_type('guide')
+def update_booking_status(booking_id, status):
+    guide_id = session['user_id']
+    
+    connection = get_db_connection()
+    if connection:
+        cursor = connection.cursor()
+        try:
+            # Verify this booking belongs to the current guide
+            cursor.execute("SELECT id FROM bookings WHERE id = %s AND guide_id = %s", 
+                         (booking_id, guide_id))
+            if not cursor.fetchone():
+                flash('Access denied. This booking does not belong to you.')
+                return redirect(url_for('guide_dashboard'))
+            
+            cursor.execute("UPDATE bookings SET booking_status = %s WHERE id = %s AND guide_id = %s", 
+                         (status, booking_id, guide_id))
+            connection.commit()
+            flash(f'Booking {status} successfully!')
+        except Error as e:
+            flash(f'Update failed: {e}')
+        finally:
+            cursor.close()
+            connection.close()
+    
+    return redirect(url_for('guide_dashboard'))
+
+
+@app.route('/upload_content', methods=['POST'])
+@require_user_type('guide')
+def upload_content():
+    guide_id = session['user_id']
+    upload_type = request.form['upload_type']
+    title = request.form['title']
+    description = request.form['description']
+    location = request.form.get('location', '')
+    
+    image_path = ''
+    if 'image' in request.files:
+        file = request.files['image']
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+            filename = timestamp + filename
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(file_path)
+            image_path = f'uploads/{filename}'
+    
+    connection = get_db_connection()
+    if connection:
+        cursor = connection.cursor()
+        try:
+            cursor.execute("""INSERT INTO guide_uploads (guide_id, upload_type, title, description, 
+                            image_path, location) VALUES (%s, %s, %s, %s, %s, %s)""",
+                         (guide_id, upload_type, title, description, image_path, location))
+            connection.commit()
+            flash('Content uploaded successfully!')
+        except Error as e:
+            flash(f'Upload failed: {e}')
+        finally:
+            cursor.close()
+            connection.close()
+    
+    return redirect(url_for('guide_dashboard'))
+
+@app.route('/admin_dashboard')
+@require_user_type('admin')
+def admin_dashboard():
+    connection = get_db_connection()
+    data = {}
+    
+    if connection:
+        cursor = connection.cursor(dictionary=True)
+        
+        # Get all users
+        cursor.execute("SELECT * FROM users ORDER BY created_at DESC")
+        data['users'] = cursor.fetchall()
+        
+        # Get all bookings
+        cursor.execute("""SELECT b.*, u1.username as tourist_name, u2.username as guide_name 
+                         FROM bookings b 
+                         JOIN users u1 ON b.tourist_id = u1.id 
+                         JOIN users u2 ON b.guide_id = u2.id 
+                         ORDER BY b.created_at DESC""")
+        data['bookings'] = cursor.fetchall()
+        
+        # Get all uploads
+        cursor.execute("""SELECT gu.*, u.username as guide_name 
+                         FROM guide_uploads gu 
+                         JOIN users u ON gu.guide_id = u.id 
+                         ORDER BY gu.upload_date DESC""")
+        data['uploads'] = cursor.fetchall()
+        
+        cursor.close()
+        connection.close()
+    
+    return render_template('admin_dashboard.html', data=data)
+
+@app.route('/delete_user/<int:user_id>')
+def delete_user(user_id):
+    if 'user_id' not in session or session['user_type'] != 'admin':
+        return redirect(url_for('login'))
+    
+    connection = get_db_connection()
+    if connection:
+        cursor = connection.cursor()
+        try:
+            cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            connection.commit()
+            flash('User deleted successfully!')
+        except Error as e:
+            flash(f'Delete failed: {e}')
+        finally:
+            cursor.close()
+            connection.close()
+    
+    return redirect(url_for('admin_dashboard'))
+@app.route('/content/<int:content_id>')
+def get_content_details(content_id):
+    connection = get_db_connection()
+    if connection:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                SELECT gu.*, u.full_name as guide_name, u.username as guide_username
+                FROM guide_uploads gu 
+                JOIN users u ON gu.guide_id = u.id 
+                WHERE gu.id = %s
+            """, (content_id,))
+            content = cursor.fetchone()
+            
+            if content:
+                # Convert datetime to string for JSON serialization
+                if content['upload_date']:
+                    content['upload_date'] = content['upload_date'].isoformat()
+                
+                return jsonify({'success': True, 'content': content})
+            else:
+                return jsonify({'success': False, 'message': 'Content not found'})
+        except Exception as e:
+            return jsonify({'success': False, 'message': str(e)})
+        finally:
+            cursor.close()
+            connection.close()
+    
+    return jsonify({'success': False, 'message': 'Database error'})
+# Route to get guide's own content for editing
+@app.route('/guide/my_content')
+@require_user_type('guide')
+def guide_my_content():
+    guide_id = session['user_id']
+    connection = get_db_connection()
+    my_content = []
+    
+    if connection:
+        cursor = connection.cursor(dictionary=True)
+        try:
+            cursor.execute("""
+                SELECT * FROM guide_uploads 
+                WHERE guide_id = %s 
+                ORDER BY upload_date DESC
+            """, (guide_id,))
+            my_content = cursor.fetchall()
+        except Exception as e:
+            print(f"Error fetching content: {e}")
+        finally:
+            cursor.close()
+            connection.close()
+    
+    return jsonify({'success': True, 'content': my_content})
+
+# Route to edit content
+@app.route('/guide/edit_content/<int:content_id>', methods=['GET', 'POST'])
+@require_user_type('guide')
+def edit_content(content_id):
+    guide_id = session['user_id']
+    connection = get_db_connection()
+    
+    if not connection:
+        flash('Database connection failed!')
+        return redirect(url_for('guide_dashboard'))
+    
+    cursor = connection.cursor(dictionary=True)
+    
+    try:
+        # Verify ownership
+        cursor.execute("SELECT * FROM guide_uploads WHERE id = %s AND guide_id = %s", 
+                      (content_id, guide_id))
+        content = cursor.fetchone()
+        
+        if not content:
+            flash('Content not found or you do not have permission to edit it!')
+            return redirect(url_for('guide_dashboard'))
+        
+        if request.method == 'POST':
+            # Update content
+            upload_type = request.form.get('upload_type')
+            title = request.form.get('title')
+            description = request.form.get('description')
+            location = request.form.get('location', '')
+            
+            # Handle image update
+            image_path = content['image_path']  # Keep existing image by default
+            if 'image' in request.files:
+                file = request.files['image']
+                if file and file.filename and allowed_file(file.filename):
+                    # Delete old image if exists
+                    if image_path and os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(image_path))):
+                        try:
+                            os.remove(os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(image_path)))
+                        except:
+                            pass
+                    
+                    # Save new image
+                    filename = secure_filename(file.filename)
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_')
+                    filename = timestamp + filename
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(file_path)
+                    image_path = f'uploads/{filename}'
+            
+            # Update database
+            cursor.execute("""
+                UPDATE guide_uploads 
+                SET upload_type = %s, title = %s, description = %s, location = %s, image_path = %s
+                WHERE id = %s AND guide_id = %s
+            """, (upload_type, title, description, location, image_path, content_id, guide_id))
+            
+            connection.commit()
+            flash('Content updated successfully!')
+            return redirect(url_for('guide_dashboard') + '#content-panel')
+        
+        # GET request - return content data for editing
+        return jsonify({'success': True, 'content': content})
+        
+    except Exception as e:
+        flash(f'Error updating content: {str(e)}')
+        return redirect(url_for('guide_dashboard'))
+    finally:
+        cursor.close()
+        connection.close()
+
+# Route to delete content
+@app.route('/guide/delete_content/<int:content_id>', methods=['DELETE'])
+@require_user_type('guide')
+def delete_content(content_id):
+    guide_id = session['user_id']
+    connection = get_db_connection()
+    
+    if not connection:
+        return jsonify({'success': False, 'message': 'Database connection failed'})
+    
+    cursor = connection.cursor(dictionary=True)
+    
+    try:
+        # Verify ownership
+        cursor.execute("SELECT * FROM guide_uploads WHERE id = %s AND guide_id = %s", 
+                      (content_id, guide_id))
+        content = cursor.fetchone()
+        
+        if not content:
+            return jsonify({'success': False, 'message': 'Content not found or access denied'})
+        
+        # Delete image file if exists
+        if content['image_path']:
+            image_file_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(content['image_path']))
+            if os.path.exists(image_file_path):
+                try:
+                    os.remove(image_file_path)
+                except:
+                    pass  # Continue even if file deletion fails
+        
+        # Delete from database
+        cursor.execute("DELETE FROM guide_uploads WHERE id = %s AND guide_id = %s", 
+                      (content_id, guide_id))
+        connection.commit()
+        
+        return jsonify({'success': True, 'message': 'Content deleted successfully'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        cursor.close()
+        connection.close()
+
+
+@app.route('/all_content')
+def all_content():
+    # Route to show all published content (you can implement this later)
+    return redirect(url_for('index'))
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+@app.route('/access_denied')
+def access_denied():
+    return render_template('access_denied.html'), 403
+@app.route('/debug_guide_profile')
+@require_user_type('guide')
+def debug_guide_profile():
+    user_id = session['user_id']
+    connection = get_db_connection()
+    
+    if connection:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM guides WHERE user_id = %s", (user_id,))
+        guide_data = cursor.fetchone()
+        cursor.close()
+        connection.close()
+        
+        return f"User ID: {user_id}<br>Guide Data: {guide_data}"
+    
+    return "Database connection failed"
+
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+{% extends "base.html" %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="container">
+        <div class="row align-items-center min-vh-100">
+            <div class="col-lg-6">
+                <h1 class="display-4 text-white mb-4">
+                    Discover the <span class="text-warning">Land of Forests</span>
+                </h1>
+                <p class="lead text-white mb-4">
+                    Experience the mineral-rich beauty of Jharkhand with local guides who know every waterfall, 
+                    every tribal story, and every industrial marvel.
+                </p>
+                <div class="d-flex gap-3 flex-wrap">
+                    <a href="{{ url_for('login_tourist') }}" class="btn btn-warning btn-lg">
+                        <i class="fas fa-user"></i> Login as Tourist
+                    </a>
+                    <a href="{{ url_for('login_guide') }}" class="btn btn-success btn-lg">
+                        <i class="fas fa-compass"></i> Login as Guide
+                    </a>
+                    <button class="btn btn-outline-light btn-lg" onclick="scrollToAbout()">
+                        <i class="fas fa-info-circle"></i> Learn More
+                    </button>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="hero-image">
+                    <div class="floating-card">
+                        <i class="fas fa-mountain text-success fa-3x mb-3"></i>
+                        <h4>24+ Districts</h4>
+                        <p>From Netarhat Hills to Betla National Park</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<section class="py-5" id="about">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 mx-auto text-center">
+                <h2 class="mb-4">Why Choose Jharkhand?</h2>
+                <p class="lead mb-5">The land of forests offers rich mineral heritage, stunning waterfalls, and vibrant tribal culture</p>
+            </div>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="feature-card text-center p-4">
+                    <i class="fas fa-map-marked-alt fa-3x text-primary mb-3"></i>
+                    <h4>Expert Local Guides</h4>
+                    <p>Connect with certified local guides who speak your language and understand tribal traditions</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card text-center p-4">
+                    <i class="fas fa-calendar-check fa-3x text-success mb-3"></i>
+                    <h4>Easy Booking</h4>
+                    <p>Simple online booking system to plan your perfect Jharkhand adventure</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card text-center p-4">
+                    <i class="fas fa-shield-alt fa-3x text-warning mb-3"></i>
+                    <h4>Safe & Secure</h4>
+                    <p>Verified guides and secure booking process for your peace of mind</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Interactive Districts Map Section -->
+<section class="py-5 bg-dark text-white">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-10 mx-auto text-center mb-5">
+                <h2 class="mb-4 text-warning">Explore All 24 Districts of Jharkhand</h2>
+                <p class="lead">Hover over the markers to explore each district's unique attractions and culture</p>
+            </div>
+        </div>
+        
+        <!-- Districts Hotspot Map Container -->
+        <div class="dnhot-hostpot-hotspots-wrapper position-relative">
+            <img src="https://www.mapsofindia.com/maps/jharkhand/jharkhand.gif" 
+                 alt="Jharkhand Map" 
+                 class="dnhot-hostpot-hotspots-minimage w-100 rounded shadow-lg"
+                 onerror="this.src='data:image/svg+xml,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;800&quot; height=&quot;600&quot; viewBox=&quot;0 0 800 600&quot;><rect width=&quot;800&quot; height=&quot;600&quot; fill=&quot;%23f8f9fa&quot;/><text x=&quot;400&quot; y=&quot;300&quot; text-anchor=&quot;middle&quot; dominant-baseline=&quot;central&quot; fill=&quot;%236c757d&quot; font-family=&quot;Arial&quot; font-size=&quot;24&quot;>Jharkhand Map</text></svg>'">
+            
+            <div class="dnhot-hostpot-hotspots-container">
+                
+                <!-- Ranchi (Capital) -->
+            <div class="dnhot-hostpot-hotspots-container">
+
+                <!-- Ranchi (Capital) -->
+                <div class="et_pb_module dnhot_tooltip_child dnhot_tooltip_child_0 et_clickable" style="position: absolute; top: 35%; left: 45%;">
+                    <div class="et_pb_module_inner">
+                        <div class="dnhot-hostpot-hotspot capital">
+                            <div class="dnhot-hostpot-tooltip">
+                                <div class="dnhot-hostpot-tooltip-item tooltip-top">
+                                    <div class="dnhot-hostpot-tooltip-content">
+                                        <div class="dnhot-hostpot-hotspots__wrapper">
+                                            <span class="dnhot-hostpot-hotspot__text">Ranchi</span>
+                                            <span class="et-pb-icon dnhot-hotspot_icon"><i class="fas fa-star"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="dnhot-hostpot-tooltip-text">
+                                        <div class="dnhot-tooltip-content-container">
+                                            <div class="dnhot-tooltip-content">
+                                                <h6 class="text-warning mb-2">Ranchi (Capital)</h6>
+                                                <p>The capital city of Jharkhand, known as the "City of Waterfalls" with numerous waterfalls, hills, and lakes. Home to the famous Hundru Falls, Dassam Falls, and Jonha Falls.</p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-danger me-1">Capital City</span>
+                                                    <span class="badge bg-info">Waterfalls</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bokaro -->
+                <div class="et_pb_module dnhot_tooltip_child dnhot_tooltip_child_1 et_clickable" style="position: absolute; top: 25%; left: 55%;">
+                    <div class="et_pb_module_inner">
+                        <div class="dnhot-hostpot-hotspot">
+                            <div class="dnhot-hostpot-tooltip">
+                                <div class="dnhot-hostpot-tooltip-item tooltip-top">
+                                    <div class="dnhot-hostpot-tooltip-content">
+                                        <div class="dnhot-hostpot-hotspots__wrapper">
+                                            <span class="dnhot-hostpot-hotspot__text">Bokaro</span>
+                                            <span class="et-pb-icon dnhot-hotspot_icon"><i class="fas fa-map-marker-alt"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="dnhot-hostpot-tooltip-text">
+                                        <div class="dnhot-tooltip-content-container">
+                                            <div class="dnhot-tooltip-content">
+                                                <h6 class="text-warning mb-2">Bokaro</h6>
+                                                <p>Known for its steel plant and industrial development. Features Garga Dam, Jawaharlal Nehru Biological Park, and various recreational facilities.</p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-success me-1">Steel City</span>
+                                                    <span class="badge bg-warning">Industrial Hub</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dhanbad -->
+                <div class="et_pb_module dnhot_tooltip_child dnhot_tooltip_child_2 et_clickable" style="position: absolute; top: 35%; left: 65%;">
+                    <div class="et_pb_module_inner">
+                        <div class="dnhot-hostpot-hotspot">
+                            <div class="dnhot-hostpot-tooltip">
+                                <div class="dnhot-hostpot-tooltip-item tooltip-top">
+                                    <div class="dnhot-hostpot-tooltip-content">
+                                        <div class="dnhot-hostpot-hotspots__wrapper">
+                                            <span class="dnhot-hostpot-hotspot__text">Dhanbad</span>
+                                            <span class="et-pb-icon dnhot-hotspot_icon"><i class="fas fa-map-marker-alt"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="dnhot-hostpot-tooltip-text">
+                                        <div class="dnhot-tooltip-content-container">
+                                            <div class="dnhot-tooltip-content">
+                                                <h6 class="text-warning mb-2">Dhanbad</h6>
+                                                <p>Known as the "Coal Capital of India" with rich coal reserves. Features Maithon Dam, Panchet Dam, and various mining and industrial sites.</p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-primary me-1">Coal Capital</span>
+                                                    <span class="badge bg-info">Mining Industry</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- East Singhbhum -->
+                <div class="et_pb_module dnhot_tooltip_child dnhot_tooltip_child_3 et_clickable" style="position: absolute; top: 55%; left: 75%;">
+                    <div class="et_pb_module_inner">
+                        <div class="dnhot-hostpot-hotspot">
+                            <div class="dnhot-hostpot-tooltip">
+                                <div class="dnhot-hostpot-tooltip-item tooltip-top">
+                                    <div class="dnhot-hostpot-tooltip-content">
+                                        <div class="dnhot-hostpot-hotspots__wrapper">
+                                            <span class="dnhot-hostpot-hotspot__text">East Singhbhum</span>
+                                            <span class="et-pb-icon dnhot-hotspot_icon"><i class="fas fa-map-marker-alt"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="dnhot-hostpot-tooltip-text">
+                                        <div class="dnhot-tooltip-content-container">
+                                            <div class="dnhot-tooltip-content">
+                                                <h6 class="text-warning mb-2">East Singhbhum</h6>
+                                                <p>Home to Jamshedpur, the steel city. Features Tata Steel Plant, Jubilee Park, Dimna Lake, and various industrial and tourist attractions.</p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-success me-1">Steel City</span>
+                                                    <span class="badge bg-warning">Industrial Tourism</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- West Singhbhum -->
+                <div class="et_pb_module dnhot_tooltip_child dnhot_tooltip_child_0 et_clickable" style="position: absolute; top: 45%; left: 40%;">
+                    <div class="et_pb_module_inner">
+                        <div class="dnhot-hostpot-hotspot capital">
+                            <div class="dnhot-hostpot-tooltip">
+                                <div class="dnhot-hostpot-tooltip-item tooltip-top">
+                                    <div class="dnhot-hostpot-tooltip-content">
+                                        <div class="dnhot-hostpot-hotspots__wrapper">
+                                            <span class="dnhot-hostpot-hotspot__text">Ranchi</span>
+                                            <span class="et-pb-icon dnhot-hotspot_icon"><i class="fas fa-star"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="dnhot-hostpot-tooltip-text">
+                                        <div class="dnhot-tooltip-content-container">
+                                            <div class="dnhot-tooltip-content">
+                                                <h6 class="text-warning mb-2">Ranchi (Capital)</h6>
+                                                <p>Capital city of Jharkhand, known for its pleasant climate, waterfalls like Hundru and Dassam, and the famous Jagannath Temple on Ranchi Hill.</p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-danger me-1">Capital City</span>
+                                                    <span class="badge bg-success">Waterfalls</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Jamshedpur -->
+                <div class="et_pb_module dnhot_tooltip_child dnhot_tooltip_child_1 et_clickable" style="position: absolute; top: 60%; left: 60%;">
+                    <div class="et_pb_module_inner">
+                        <div class="dnhot-hostpot-hotspot">
+                            <div class="dnhot-hostpot-tooltip">
+                                <div class="dnhot-hostpot-tooltip-item tooltip-top">
+                                    <div class="dnhot-hostpot-tooltip-content">
+                                        <div class="dnhot-hostpot-hotspots__wrapper">
+                                            <span class="dnhot-hostpot-hotspot__text">East Singhbhum</span>
+                                            <span class="et-pb-icon dnhot-hotspot_icon"><i class="fas fa-map-marker-alt"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="dnhot-hostpot-tooltip-text">
+                                        <div class="dnhot-tooltip-content-container">
+                                            <div class="dnhot-tooltip-content">
+                                                <h6 class="text-warning mb-2">East Singhbhum (Jamshedpur)</h6>
+                                                <p>Steel City of India, home to Tata Steel. Features Jubilee Park, Dalma Wildlife Sanctuary, and beautiful lakes like Dimna and Jayanti Sarovar.</p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-info me-1">Steel City</span>
+                                                    <span class="badge bg-warning">Industrial Heritage</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Deoghar -->
+                <div class="et_pb_module dnhot_tooltip_child dnhot_tooltip_child_2 et_clickable" style="position: absolute; top: 20%; left: 55%;">
+                    <div class="et_pb_module_inner">
+                        <div class="dnhot-hostpot-hotspot">
+                            <div class="dnhot-hostpot-tooltip">
+                                <div class="dnhot-hostpot-tooltip-item tooltip-top">
+                                    <div class="dnhot-hostpot-tooltip-content">
+                                        <div class="dnhot-hostpot-hotspots__wrapper">
+                                            <span class="dnhot-hostpot-hotspot__text">Deoghar</span>
+                                            <span class="et-pb-icon dnhot-hotspot_icon"><i class="fas fa-map-marker-alt"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="dnhot-hostpot-tooltip-text">
+                                        <div class="dnhot-tooltip-content-container">
+                                            <div class="dnhot-tooltip-content">
+                                                <h6 class="text-warning mb-2">Deoghar</h6>
+                                                <p>Famous for Baba Baidyanath Temple, one of the twelve Jyotirlingas. Major pilgrimage destination with rich spiritual heritage.</p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-primary me-1">Religious</span>
+                                                    <span class="badge bg-success">Pilgrimage</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dhanbad -->
+                <div class="et_pb_module dnhot_tooltip_child dnhot_tooltip_child_3 et_clickable" style="position: absolute; top: 25%; left: 70%;">
+                    <div class="et_pb_module_inner">
+                        <div class="dnhot-hostpot-hotspot">
+                            <div class="dnhot-hostpot-tooltip">
+                                <div class="dnhot-hostpot-tooltip-item tooltip-top">
+                                    <div class="dnhot-hostpot-tooltip-content">
+                                        <div class="dnhot-hostpot-hotspots__wrapper">
+                                            <span class="dnhot-hostpot-hotspot__text">Dhanbad</span>
+                                            <span class="et-pb-icon dnhot-hotspot_icon"><i class="fas fa-map-marker-alt"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="dnhot-hostpot-tooltip-text">
+                                        <div class="dnhot-tooltip-content-container">
+                                            <div class="dnhot-tooltip-content">
+                                                <h6 class="text-warning mb-2">Dhanbad</h6>
+                                                <p>Coal capital of India, known for coal mining and the Indian School of Mines. Rich in mineral resources and industrial heritage.</p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-dark me-1">Coal Capital</span>
+                                                    <span class="badge bg-warning">Mining</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hazaribagh -->
+                <div class="et_pb_module dnhot_tooltip_child dnhot_tooltip_child_4 et_clickable" style="position: absolute; top: 35%; left: 45%;">
+                    <div class="et_pb_module_inner">
+                        <div class="dnhot-hostpot-hotspot">
+                            <div class="dnhot-hostpot-tooltip">
+                                <div class="dnhot-hostpot-tooltip-item tooltip-top">
+                                    <div class="dnhot-hostpot-tooltip-content">
+                                        <div class="dnhot-hostpot-hotspots__wrapper">
+                                            <span class="dnhot-hostpot-hotspot__text">Hazaribagh</span>
+                                            <span class="et-pb-icon dnhot-hotspot_icon"><i class="fas fa-map-marker-alt"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="dnhot-hostpot-tooltip-text">
+                                        <div class="dnhot-tooltip-content-container">
+                                            <div class="dnhot-tooltip-content">
+                                                <h6 class="text-warning mb-2">Hazaribagh</h6>
+                                                <p>Known for Hazaribagh National Park, rich wildlife including tigers and leopards. Beautiful landscapes and forest reserves.</p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-success me-1">National Park</span>
+                                                    <span class="badge bg-info">Wildlife</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bokaro -->
+                <div class="et_pb_module dnhot_tooltip_child dnhot_tooltip_child_5 et_clickable" style="position: absolute; top: 40%; left: 55%;">
+                    <div class="et_pb_module_inner">
+                        <div class="dnhot-hostpot-hotspot">
+                            <div class="dnhot-hostpot-tooltip">
+                                <div class="dnhot-hostpot-tooltip-item tooltip-top">
+                                    <div class="dnhot-hostpot-tooltip-content">
+                                        <div class="dnhot-hostpot-hotspots__wrapper">
+                                            <span class="dnhot-hostpot-hotspot__text">Bokaro</span>
+                                            <span class="et-pb-icon dnhot-hotspot_icon"><i class="fas fa-map-marker-alt"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="dnhot-hostpot-tooltip-text">
+                                        <div class="dnhot-tooltip-content-container">
+                                            <div class="dnhot-tooltip-content">
+                                                <h6 class="text-warning mb-2">Bokaro</h6>
+                                                <p>Steel City with Bokaro Steel Plant. Known for industrial development and modern infrastructure.</p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-info me-1">Steel Industry</span>
+                                                    <span class="badge bg-primary">Modern City</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- West Singhbhum (Chaibasa) -->
+                <div class="et_pb_module dnhot_tooltip_child dnhot_tooltip_child_6 et_clickable" style="position: absolute; top: 65%; left: 25%;">
+                    <div class="et_pb_module_inner">
+                        <div class="dnhot-hostpot-hotspot">
+                            <div class="dnhot-hostpot-tooltip">
+                                <div class="dnhot-hostpot-tooltip-item tooltip-top">
+                                    <div class="dnhot-hostpot-tooltip-content">
+                                        <div class="dnhot-hostpot-hotspots__wrapper">
+                                            <span class="dnhot-hostpot-hotspot__text">West Singhbhum</span>
+                                            <span class="et-pb-icon dnhot-hotspot_icon"><i class="fas fa-map-marker-alt"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="dnhot-hostpot-tooltip-text">
+                                        <div class="dnhot-tooltip-content-container">
+                                            <div class="dnhot-tooltip-content">
+                                                <h6 class="text-warning mb-2">West Singhbhum (Chaibasa)</h6>
+                                                <p>Home to Betla National Park, rich tribal culture, and pristine forests. Famous for wildlife and eco-tourism.</p>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-success me-1">National Park</span>
+                                                    <span class="badge bg-warning">Tribal Culture</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-12 text-center">
+                <p class="lead text-light">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Hover over the markers to explore each district's unique attractions and book local guides for authentic experiences!
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Guide Published Content Section -->
+{% if published_content %}
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-10 mx-auto text-center mb-5">
+                <h2 class="mb-4">Latest from Our Local Guides</h2>
+                <p class="lead text-muted">Discover hidden gems and authentic experiences shared by our expert guides</p>
+            </div>
+        </div>
+        
+        <div class="row g-4">
+            {% for content in published_content %}
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="content-card card border-0 shadow-sm h-100">
+                    {% if content.image_path %}
+                        <div class="content-image-container">
+                            <img src="{{ url_for('static', filename=content.image_path) }}" 
+                                 class="card-img-top content-image" 
+                                 alt="{{ content.title }}">
+                            <div class="content-type-badge">
+                                {% if content.upload_type == 'event' %}
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="fas fa-calendar-alt"></i> Event
+                                    </span>
+                                {% elif content.upload_type == 'photo' %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-camera"></i> Photo
+                                    </span>
+                                {% elif content.upload_type == 'location' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-map-marker-alt"></i> Location
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="content-image-placeholder d-flex align-items-center justify-content-center bg-light" style="height: 200px;">
+                            {% if content.upload_type == 'event' %}
+                                <i class="fas fa-calendar-alt fa-3x text-warning"></i>
+                            {% elif content.upload_type == 'photo' %}
+                                <i class="fas fa-camera fa-3x text-info"></i>
+                            {% elif content.upload_type == 'location' %}
+                                <i class="fas fa-map-marker-alt fa-3x text-success"></i>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title mb-0">{{ content.title }}</h5>
+                            <small class="text-muted">
+                                {{ content.upload_date.strftime('%d %b') if content.upload_date else 'Recent' }}
+                            </small>
+                        </div>
+                        
+                        <p class="card-text text-muted small mb-3">
+                            {{ content.description[:120] }}{% if content.description|length > 120 %}...{% endif %}
+                        </p>
+                        
+                        {% if content.location %}
+                        <div class="location-info mb-3">
+                            <i class="fas fa-map-pin text-danger me-1"></i>
+                            <small class="text-muted">{{ content.location }}</small>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="guide-info d-flex align-items-center justify-content-between">
+                            <div class="guide-profile d-flex align-items-center">
+                                <div class="guide-avatar me-2">
+                                    <i class="fas fa-user-circle fa-2x text-primary"></i>
+                                </div>
+                                <div>
+                                    <h6 class="mb-0 small">{{ content.guide_name or content.guide_username }}</h6>
+                                    <small class="text-muted">Local Guide</small>
+                                </div>
+                            </div>
+                            <button class="btn btn-outline-primary btn-sm" onclick="contactGuide('{{ content.guide_username }}')">
+                                <i class="fas fa-message"></i> Contact
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- View All Content Button -->
+        <div class="row mt-5">
+            <div class="col-12 text-center">
+                <button class="btn btn-primary btn-lg">
+                    <i class="fas fa-images"></i> View All Guide Content
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 mx-auto text-center">
+                <h2 class="mb-4">Popular Destinations</h2>
+                <p class="lead mb-5">Explore the most beautiful and culturally rich places in Jharkhand</p>
+            </div>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-3">
+                <div class="destination-card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-place-of-worship fa-2x text-primary mb-3"></i>
+                        <h5>Baidyanath Dham</h5>
+                        <p class="small">One of the twelve Jyotirlingas in Deoghar, major pilgrimage destination</p>
+                        <div class="mt-2">
+                            <span class="badge bg-primary">Spiritual</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="destination-card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-water fa-2x text-info mb-3"></i>
+                        <h5>Hundru Falls</h5>
+                        <p class="small">98-meter high waterfall near Ranchi, spectacular during monsoon</p>
+                        <div class="mt-2">
+                            <span class="badge bg-info">Waterfall</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="destination-card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-mountain fa-2x text-success mb-3"></i>
+                        <h5>Netarhat</h5>
+                        <p class="small">Queen of Chotanagpur, hill station famous for sunrise and sunset views</p>
+                        <div class="mt-2">
+                            <span class="badge bg-success">Hill Station</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="destination-card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-paw fa-2x text-warning mb-3"></i>
+                        <h5>Betla National Park</h5>
+                        <p class="small">Home to tigers, elephants, and diverse wildlife in Palamau</p>
+                        <div class="mt-2">
+                            <span class="badge bg-warning">Wildlife</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Additional Popular Places -->
+        <div class="row g-4 mt-2">
+            <div class="col-md-6 col-lg-3">
+                <div class="destination-card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-industry fa-2x text-dark mb-3"></i>
+                        <h5>Jamshedpur</h5>
+                        <p class="small">Steel City with Jubilee Park, Dalma Wildlife Sanctuary</p>
+                        <div class="mt-2">
+                            <span class="badge bg-dark">Industrial Heritage</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="destination-card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-water fa-2x text-primary mb-3"></i>
+                        <h5>Dassam Falls</h5>
+                        <p class="small">39-meter waterfall on Kanchi River, popular picnic spot</p>
+                        <div class="mt-2">
+                            <span class="badge bg-primary">Waterfall</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="destination-card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-tree fa-2x text-success mb-3"></i>
+                        <h5>Hazaribagh National Park</h5>
+                        <p class="small">Dense forests with tigers, leopards, and diverse wildlife</p>
+                        <div class="mt-2">
+                            <span class="badge bg-success">National Park</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="destination-card">
+                    <div class="card-body text-center">
+                        <i class="fas fa-camera fa-2x text-info mb-3"></i>
+                        <h5>Tagore Hill</h5>
+                        <p class="small">Beautiful hilltop in Ranchi with panoramic city views</p>
+                        <div class="mt-2">
+                            <span class="badge bg-info">Scenic Views</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Footer with Google Maps for Jharkhand -->
+<footer class="bg-dark text-light py-5">
+    <div class="container">
+        <div class="row">
+            <!-- About Section -->
+            <div class="col-lg-4 col-md-6 mb-4">
+                <h5 class="mb-3">
+                    <i class="fas fa-tree text-warning me-2"></i>About Jharkhand
+                </h5>
+                <p class="text-light">Jharkhand, the "Land of Forests," is a state in eastern India known for its rich mineral resources, stunning waterfalls, dense forests, and vibrant tribal culture.</p>
+                
+                <div class="location-stats mt-3">
+                    <div class="row text-center">
+                        <div class="col-6 mb-2">
+                            <div class="stat-item">
+                                <i class="fas fa-map-marked-alt text-info"></i>
+                                <small class="d-block text-muted">79,714 km²</small>
+                                <small class="text-light">Total Area</small>
+                            </div>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <div class="stat-item">
+                                <i class="fas fa-users text-success"></i>
+                                <small class="d-block text-muted">36 Million</small>
+                                <small class="text-light">Population</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-item">
+                                <i class="fas fa-city text-warning"></i>
+                                <small class="d-block text-muted">24</small>
+                                <small class="text-light">Districts</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-item">
+                                <i class="fas fa-industry text-primary"></i>
+                                <small class="d-block text-muted">40%</small>
+                                <small class="text-light">India's Minerals</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Location Details -->
+            <div class="col-lg-4 col-md-6 mb-4">
+                <h5 class="mb-3">
+                    <i class="fas fa-map-marker-alt text-danger me-2"></i>Geographic Details
+                </h5>
+                <div class="location-info">
+                    <div class="info-item mb-2">
+                        <i class="fas fa-compass text-info me-2"></i>
+                        <strong>Location:</strong> Eastern India
+                    </div>
+                    <div class="info-item mb-2">
+                        <i class="fas fa-map-pin text-warning me-2"></i>
+                        <strong>Capital:</strong> Ranchi
+                    </div>
+                    <div class="info-item mb-2">
+                        <i class="fas fa-globe-asia text-success me-2"></i>
+                        <strong>Coordinates:</strong> 23°21'N, 85°20'E
+                    </div>
+                    <div class="info-item mb-2">
+                        <i class="fas fa-mountain text-primary me-2"></i>
+                        <strong>Borders:</strong> Bihar (N), West Bengal (E), Odisha (S), Chhattisgarh (W)
+                    </div>
+                    <div class="info-item mb-2">
+                        <i class="fas fa-clock text-info me-2"></i>
+                        <strong>Timezone:</strong> Indian Standard Time (IST)
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-star text-warning me-2"></i>
+                        <strong>Famous for:</strong> Baidyanath Dham, Netarhat, Hundru Falls, Steel Industry
+                    </div>
+                </div>
+            </div>
+
+            <!-- Google Maps Section -->
+            <div class="col-lg-4 mb-4">
+                <h5 class="mb-3">
+                    <i class="fas fa-globe text-success me-2"></i>Location on Map
+                </h5>
+                
+                <!-- Google Maps Embed for Jharkhand -->
+                <div class="map-container mb-3">
+                    <iframe 
+                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d1858239.1985900877!2d83.3856453!3d23.6102325!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39f1e2bf2b71a2e7%3A0xeefe6a1d7ae6d25c!2sJharkhand!5e0!3m2!1sen!2sin!4v1703285472648!5m2!1sen!2sin"
+                        width="100%" 
+                        height="250" 
+                        style="border:0; border-radius: 10px;" 
+                        allowfullscreen="" 
+                        loading="lazy" 
+                        referrerpolicy="no-referrer-when-downgrade"
+                        title="Jharkhand Location">
+                    </iframe>
+                </div>
+
+                <!-- Map Controls -->
+                <div class="map-controls">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <a href="https://www.google.com/maps/place/Jharkhand/@23.6102325,85.2786797,8z" 
+                               target="_blank" 
+                               class="btn btn-outline-light btn-sm w-100">
+                                <i class="fas fa-external-link-alt"></i> View Full Map
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="https://www.google.com/maps/dir//Jharkhand" 
+                               target="_blank" 
+                               class="btn btn-outline-success btn-sm w-100">
+                                <i class="fas fa-directions"></i> Get Directions
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Access -->
+                <div class="quick-access mt-3">
+                    <h6 class="text-warning mb-2">
+                        <i class="fas fa-plane"></i> Getting There
+                    </h6>
+                    <div class="access-info">
+                        <div class="mb-1">
+                            <i class="fas fa-plane text-info me-1"></i>
+                            <small>Nearest Airport: Birsa Munda Airport, Ranchi (IXR)</small>
+                        </div>
+                        <div class="mb-1">
+                            <i class="fas fa-train text-success me-1"></i>
+                            <small>Major Railway: Ranchi Junction, Jamshedpur</small>
+                        </div>
+                        <div>
+                            <i class="fas fa-road text-warning me-1"></i>
+                            <small>By Road: NH-33, NH-23, NH-20</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bottom Section -->
+        <hr class="my-4" style="border-color: #495057;">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-tree fa-2x text-warning me-3"></i>
+                    <div>
+                        <h6 class="mb-1">Jharkhand Tourism</h6>
+                        <small class="text-muted">Connecting Tourists with Local Guides</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="text-md-end">
+                    <div class="social-links mb-2">
+                        <a href="#" class="text-light me-3" title="Facebook">
+                            <i class="fab fa-facebook-f"></i>
+                        </a>
+                        <a href="#" class="text-light me-3" title="Instagram">
+                            <i class="fab fa-instagram"></i>
+                        </a>
+                        <a href="#" class="text-light me-3" title="Twitter">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="text-light" title="YouTube">
+                            <i class="fab fa-youtube"></i>
+                        </a>
+                    </div>
+                    <small class="text-muted">
+                        &copy; 2025 Jharkhand Tourism Platform
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Info Banner -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="alert alert-dark border-0 mb-0" style="background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-info-circle text-info fa-2x me-3"></i>
+                                <div>
+                                    <h6 class="mb-1 text-light">Plan Your Visit</h6>
+                                    <small class="text-muted">Best time to visit: October to March | Rich in minerals, waterfalls, and wildlife</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-md-end">
+                            <small class="text-muted">
+                                <i class="fas fa-thermometer-half text-success me-1"></i>
+                                Climate: Tropical | Elevation: 300m - 1,164m
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<style>
+/* Interactive Map Styles */
+.dnhot-hostpot-hotspots-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.dnhot-hostpot-hotspots-minimage {
+    width: 100%;
+    height: auto;
+    border-radius: 15px;
+}
+
+.dnhot-hostpot-hotspots-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.dnhot-hostpot-hotspot {
+    width: 20px;
+    height: 20px;
+    background: linear-gradient(45deg, #ff6b35, #f7931e);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    animation: pulse 2s infinite;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.dnhot-hostpot-hotspot.capital {
+    background: linear-gradient(45deg, #dc3545, #c82333);
+    width: 25px;
+    height: 25px;
+    font-size: 12px;
+}
+
+.dnhot-hostpot-hotspot:hover {
+    transform: scale(1.3);
+    z-index: 1000;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.7);
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.7), 0 2px 10px rgba(0,0,0,0.5); }
+    70% { box-shadow: 0 0 0 10px rgba(255, 107, 53, 0), 0 2px 10px rgba(0,0,0,0.5); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0), 0 2px 10px rgba(0,0,0,0.5); }
+}
+
+.dnhot-hostpot-tooltip-text {
+    position: absolute;
+    top: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    color: #333;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    min-width: 280px;
+    max-width: 320px;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+    z-index: 1001;
+}
+
+.dnhot-hostpot-tooltip-text::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 8px solid white;
+}
+
+.dnhot-hostpot-hotspot:hover + .dnhot-hostpot-tooltip .dnhot-hostpot-tooltip-text {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(-5px);
+}
+
+/* Content Cards Styling */
+.content-card {
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.content-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1) !important;
+}
+
+.content-image-container {
+    position: relative;
+    overflow: hidden;
+}
+
+.content-image {
+    height: 200px;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.content-card:hover .content-image {
+    transform: scale(1.1);
+}
+
+.content-type-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+}
+
+.location-info {
+    background: rgba(220, 53, 69, 0.1);
+    padding: 4px 8px;
+    border-radius: 15px;
+    display: inline-block;
+}
+
+/* Enhanced Footer Styles */
+footer .stat-item {
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+footer .stat-item:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+footer .info-item {
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+footer .info-item:last-child {
+    border-bottom: none;
+}
+
+.map-container {
+    border: 2px solid #495057;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.social-links a {
+    display: inline-block;
+    width: 35px;
+    height: 35px;
+    line-height: 35px;
+    text-align: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.social-links a:hover {
+    background: #f39c12;
+    transform: translateY(-3px);
+}
+
+/* Destination Cards */
+.destination-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.destination-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+}
+</style>
+{% endblock %}

@@ -1,0 +1,567 @@
+{% extends "base.html" %}
+
+{% block title %}Book Jharkhand Guide - Jharkhand Tourism{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-4">
+    <div class="row">
+        <!-- Guide Information Sidebar -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm border-0 sticky-top" style="top: 100px;">
+                <div class="card-header bg-gradient-primary text-white text-center py-3">
+                    <i class="fas fa-user-circle fa-3x mb-2"></i>
+                    <h5 class="mb-0">{{ guide.guide_name or guide.username }}</h5>
+                    <small>Certified Jharkhand Guide</small>
+                </div>
+                <div class="card-body">
+                    <div class="guide-details">
+                        {% if guide.specialization %}
+                        <div class="detail-item mb-3">
+                            <i class="fas fa-star text-warning me-2"></i>
+                            <strong>Specialization:</strong>
+                            <div class="mt-1">
+                                <span class="badge bg-primary">{{ guide.specialization }}</span>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if guide.experience_years %}
+                        <div class="detail-item mb-3">
+                            <i class="fas fa-clock text-info me-2"></i>
+                            <strong>Experience:</strong> {{ guide.experience_years }} years
+                        </div>
+                        {% endif %}
+                        
+                        {% if guide.location %}
+                        <div class="detail-item mb-3">
+                            <i class="fas fa-map-marker-alt text-danger me-2"></i>
+                            <strong>Service Area:</strong> {{ guide.location }}
+                        </div>
+                        {% endif %}
+                        
+                        {% if guide.languages_spoken %}
+                        <div class="detail-item mb-3">
+                            <i class="fas fa-language text-success me-2"></i>
+                            <strong>Languages:</strong> {{ guide.languages_spoken }}
+                        </div>
+                        {% endif %}
+                        
+                        {% if guide.price_per_day %}
+                        <div class="detail-item mb-3">
+                            <div class="price-highlight p-3 bg-light rounded text-center">
+                                <i class="fas fa-rupee-sign text-success"></i>
+                                <span class="h4 text-success">{{ guide.price_per_day }}</span>
+                                <div class="small text-muted">per day</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if guide.rating %}
+                        <div class="detail-item mb-3 text-center">
+                            <div class="rating">
+                                {% for i in range(5) %}
+                                    {% if i < guide.rating %}
+                                        <i class="fas fa-star text-warning"></i>
+                                    {% else %}
+                                        <i class="far fa-star text-muted"></i>
+                                    {% endif %}
+                                {% endfor %}
+                                <span class="ms-2">{{ guide.rating }}/5</span>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Popular Attractions -->
+                    <div class="popular-attractions mt-4">
+                        <h6 class="text-primary mb-2">
+                            <i class="fas fa-map-marked-alt me-1"></i>Popular in {{ guide.location or 'Jharkhand' }}:
+                        </h6>
+                        <div class="attractions-list">
+                            {% if 'Ranchi' in (guide.location or '') %}
+                                <small class="d-block mb-1"><i class="fas fa-water text-info me-1"></i> Hundru Falls</small>
+                                <small class="d-block mb-1"><i class="fas fa-mountain text-success me-1"></i> Tagore Hill</small>
+                                <small class="d-block mb-1"><i class="fas fa-place-of-worship text-warning me-1"></i> Jagannath Temple</small>
+                            {% elif 'Deoghar' in (guide.location or '') %}
+                                <small class="d-block mb-1"><i class="fas fa-place-of-worship text-warning me-1"></i> Baidyanath Dham</small>
+                                <small class="d-block mb-1"><i class="fas fa-mountain text-success me-1"></i> Trikuta Parvat</small>
+                            {% elif 'East Singhbhum' in (guide.location or '') or 'Jamshedpur' in (guide.location or '') %}
+                                <small class="d-block mb-1"><i class="fas fa-industry text-dark me-1"></i> Tata Steel Plant</small>
+                                <small class="d-block mb-1"><i class="fas fa-tree text-success me-1"></i> Jubilee Park</small>
+                                <small class="d-block mb-1"><i class="fas fa-paw text-warning me-1"></i> Dalma Wildlife Sanctuary</small>
+                            {% elif 'Hazaribagh' in (guide.location or '') %}
+                                <small class="d-block mb-1"><i class="fas fa-paw text-success me-1"></i> Hazaribagh National Park</small>
+                                <small class="d-block mb-1"><i class="fas fa-water text-info me-1"></i> Canary Hill</small>
+                            {% else %}
+                                <small class="d-block mb-1"><i class="fas fa-water text-info me-1"></i> Waterfalls</small>
+                                <small class="d-block mb-1"><i class="fas fa-paw text-success me-1"></i> Wildlife Sanctuaries</small>
+                                <small class="d-block mb-1"><i class="fas fa-place-of-worship text-warning me-1"></i> Temples & Heritage</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Booking Form -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-gradient-success text-white py-3">
+                    <h4 class="mb-0">
+                        <i class="fas fa-calendar-plus me-2"></i>Book Your Jharkhand Tour
+                    </h4>
+                    <small>Fill in the details below to book your authentic Jharkhand experience</small>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" action="{{ url_for('book_guide') }}" id="bookingForm">
+                        <input type="hidden" name="guide_id" value="{{ guide.user_id or guide.id }}">
+
+                        <!-- Tourist Information -->
+                        <div class="form-section mb-4">
+                            <h5 class="section-title mb-3">
+                                <i class="fas fa-user text-primary me-2"></i>Tourist Information
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Full Name *</label>
+                                    <input type="text" class="form-control form-control-lg" name="tourist_name" required 
+                                           placeholder="Enter your full name" value="{{ session.full_name or '' }}">
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Phone Number *</label>
+                                    <input type="tel" class="form-control form-control-lg" name="phone" required 
+                                           placeholder="Enter your mobile number" pattern="[0-9]{10}">
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Email Address</label>
+                                    <input type="email" class="form-control form-control-lg" name="email" 
+                                           placeholder="Enter your email address">
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Native Place/City *</label>
+                                    <input type="text" class="form-control form-control-lg" name="native_place" required 
+                                           placeholder="e.g., Delhi, Mumbai, Kolkata">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tour Details -->
+                        <div class="form-section mb-4">
+                            <h5 class="section-title mb-3">
+                                <i class="fas fa-map-marked-alt text-success me-2"></i>Tour Details
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Arrival Date *</label>
+                                    <input type="date" class="form-control form-control-lg" name="arrival_date" required 
+                                           id="arrivalDate">
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Duration (Days) *</label>
+                                    <select class="form-select form-select-lg" name="days_to_stay" required id="daysToStay">
+                                        <option value="">Select duration</option>
+                                        <option value="1">1 Day</option>
+                                        <option value="2">2 Days</option>
+                                        <option value="3">3 Days</option>
+                                        <option value="4">4 Days</option>
+                                        <option value="5">5 Days</option>
+                                        <option value="6">6 Days</option>
+                                        <option value="7">1 Week</option>
+                                        <option value="10">10 Days</option>
+                                        <option value="14">2 Weeks</option>
+                                        <option value="21">3 Weeks</option>
+                                        <option value="30">1 Month</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Group Size</label>
+                                    <select class="form-select form-select-lg" name="group_size" id="groupSize">
+                                        <option value="1">Solo Traveler</option>
+                                        <option value="2">2 People</option>
+                                        <option value="3">3 People</option>
+                                        <option value="4">4 People</option>
+                                        <option value="5">5 People</option>
+                                        <option value="6">6 People</option>
+                                        <option value="7">7+ People</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Tour Type Preference</label>
+                                    <select class="form-select form-select-lg" name="tour_type">
+                                        <option value="">Select tour type</option>
+                                        <option value="Wildlife & Nature Tours">🦌 Wildlife & Nature Tours</option>
+                                        <option value="Cultural Heritage Tours">🏛️ Cultural Heritage Tours</option>
+                                        <option value="Adventure & Trekking">⛰️ Adventure & Trekking</option>
+                                        <option value="Photography Tours">📸 Photography Tours</option>
+                                        <option value="Spiritual & Temple Tours">🙏 Spiritual & Temple Tours</option>
+                                        <option value="Industrial Heritage Tours">🏭 Industrial Heritage Tours</option>
+                                        <option value="Tribal Culture Tours">🎭 Tribal Culture Tours</option>
+                                        <option value="Waterfall Tours">💧 Waterfall Tours</option>
+                                        <option value="General Tourism">🗺️ General Sightseeing</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Specific Places You Want to Visit</label>
+                                <textarea class="form-control" name="specific_places" rows="3" 
+                                          placeholder="e.g., Hundru Falls, Baidyanath Dham, Netarhat, Betla National Park, Jamshedpur Steel Plant..."></textarea>
+                                <small class="text-muted">Let your guide know about any specific attractions you're interested in</small>
+                            </div>
+                        </div>
+
+                        <!-- Accommodation & Transport -->
+                        <div class="form-section mb-4">
+                            <h5 class="section-title mb-3">
+                                <i class="fas fa-hotel text-warning me-2"></i>Accommodation & Transport
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Accommodation Preference</label>
+                                    <select class="form-select form-select-lg" name="accommodation">
+                                        <option value="">Select preference</option>
+                                        <option value="budget">Budget Hotels/Guesthouses (₹1000-2000)</option>
+                                        <option value="mid-range">Mid-range Hotels (₹2000-4000)</option>
+                                        <option value="premium">Premium Hotels/Resorts (₹4000+)</option>
+                                        <option value="homestay">Local Homestays</option>
+                                        <option value="own-arrangement">I'll arrange my own</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Transport Preference</label>
+                                    <select class="form-select form-select-lg" name="transport">
+                                        <option value="">Select preference</option>
+                                        <option value="private-car">Private Car/Taxi</option>
+                                        <option value="public-transport">Public Transport</option>
+                                        <option value="bike-rental">Bike/Scooter Rental</option>
+                                        <option value="walking-tour">Walking Tours</option>
+                                        <option value="own-vehicle">Own Vehicle</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Special Requirements -->
+                        <div class="form-section mb-4">
+                            <h5 class="section-title mb-3">
+                                <i class="fas fa-clipboard-list text-info me-2"></i>Special Requirements
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Dietary Preferences</label>
+                                    <select class="form-select form-select-lg" name="dietary_preference">
+                                        <option value="">No specific preference</option>
+                                        <option value="vegetarian">Vegetarian</option>
+                                        <option value="vegan">Vegan</option>
+                                        <option value="non-vegetarian">Non-Vegetarian</option>
+                                        <option value="jain">Jain Food</option>
+                                        <option value="halal">Halal</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Physical Fitness Level</label>
+                                    <select class="form-select form-select-lg" name="fitness_level">
+                                        <option value="average">Average</option>
+                                        <option value="low">Low (prefer easy activities)</option>
+                                        <option value="high">High (enjoy challenging activities)</option>
+                                        <option value="mobility-assistance">Need mobility assistance</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Additional Requirements or Messages</label>
+                                <textarea class="form-control" name="additional_requirements" rows="3" 
+                                          placeholder="Any special requests, medical conditions, accessibility needs, or messages for your guide..."></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Cost Calculation -->
+                        <div class="form-section mb-4">
+                            <h5 class="section-title mb-3">
+                                <i class="fas fa-calculator text-warning me-2"></i>Tour Cost Estimation
+                            </h5>
+                            
+                            <div class="cost-breakdown bg-light p-3 rounded">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="cost-item d-flex justify-content-between mb-2">
+                                            <span>Guide Service (per day):</span>
+                                            <span class="fw-bold">₹{{ guide.price_per_day or 2000 }}</span>
+                                        </div>
+                                        <div class="cost-item d-flex justify-content-between mb-2">
+                                            <span>Duration:</span>
+                                            <span class="fw-bold" id="selectedDays">- days</span>
+                                        </div>
+                                        <div class="cost-item d-flex justify-content-between mb-2">
+                                            <span>Group Size:</span>
+                                            <span class="fw-bold" id="selectedGroupSize">1 person</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="total-cost text-center p-3 bg-success text-white rounded">
+                                            <div class="small">Estimated Total Guide Cost</div>
+                                            <div class="h3 mb-0" id="totalCost">₹{{ guide.price_per_day or 2000 }}</div>
+                                            <div class="small">(Accommodation & transport separate)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-2">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Final cost may vary based on specific requirements and will be confirmed by your guide.
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Terms and Booking -->
+                        <div class="form-section mb-4">
+                            <div class="booking-terms p-3 bg-info bg-opacity-10 rounded">
+                                <h6 class="text-info mb-2">
+                                    <i class="fas fa-handshake me-1"></i>Booking Terms:
+                                </h6>
+                                <div class="row small">
+                                    <div class="col-md-6">
+                                        <ul class="mb-0">
+                                            <li>Guide will confirm availability within 24 hours</li>
+                                            <li>Payment can be made directly to guide</li>
+                                            <li>Free cancellation up to 48 hours before tour</li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <ul class="mb-0">
+                                            <li>Guide contact details will be shared after confirmation</li>
+                                            <li>All prices are negotiable with the guide</li>
+                                            <li>Tips and gratitude are appreciated but not mandatory</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" id="agreeBookingTerms" required>
+                                <label class="form-check-label" for="agreeBookingTerms">
+                                    I agree to the booking terms and conditions and understand that this is a request subject to guide availability.
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                            <button type="submit" class="btn btn-success btn-lg px-5" id="submitBooking">
+                                <i class="fas fa-paper-plane me-2"></i>Send Booking Request
+                            </button>
+                            <a href="{{ url_for('tourist_dashboard') }}" class="btn btn-outline-secondary btn-lg px-4">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #007bff, #0056b3) !important;
+}
+
+.bg-gradient-success {
+    background: linear-gradient(135deg, #28a745, #20c997) !important;
+}
+
+.form-section {
+    background: #fafbfc;
+    padding: 1.5rem;
+    border-radius: 10px;
+    border: 1px solid #e9ecef;
+    margin-bottom: 1rem;
+}
+
+.section-title {
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.form-control-lg, .form-select-lg {
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+
+.form-control-lg:focus, .form-select-lg:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+.detail-item {
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.detail-item:last-child {
+    border-bottom: none;
+}
+
+.price-highlight {
+    border: 2px solid #28a745;
+    background: linear-gradient(135deg, #f8f9fa, #e8f5e8);
+}
+
+.cost-breakdown {
+    border: 1px solid #dee2e6;
+}
+
+.cost-item {
+    font-size: 0.95rem;
+}
+
+.booking-terms {
+    border: 1px solid #b8daff;
+}
+
+.btn-success.btn-lg {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    border: none;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+    transition: all 0.3s ease;
+}
+
+.btn-success.btn-lg:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4);
+}
+
+.sticky-top {
+    z-index: 1020;
+}
+
+/* Responsive adjustments */
+@media (max-width: 991px) {
+    .sticky-top {
+        position: relative !important;
+        top: auto !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .form-section {
+        padding: 1rem;
+    }
+    
+    .cost-breakdown .row {
+        flex-direction: column;
+    }
+    
+    .total-cost {
+        margin-top: 1rem;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('bookingForm');
+    const arrivalDateInput = document.getElementById('arrivalDate');
+    const daysToStaySelect = document.getElementById('daysToStay');
+    const groupSizeSelect = document.getElementById('groupSize');
+    const guidePrice = {{ guide.price_per_day or 2000 }};
+    
+    // Set minimum date to today
+    const today = new Date().toISOString().split('T')[0];
+    arrivalDateInput.min = today;
+    
+    // Cost calculation
+    function updateCost() {
+        const days = parseInt(daysToStaySelect.value) || 1;
+        const groupSize = parseInt(groupSizeSelect.value) || 1;
+        
+        document.getElementById('selectedDays').textContent = days + ' day' + (days > 1 ? 's' : '');
+        document.getElementById('selectedGroupSize').textContent = groupSize + ' person' + (groupSize > 1 ? 's' : '');
+        
+        const totalCost = guidePrice * days;
+        document.getElementById('totalCost').textContent = '₹' + totalCost.toLocaleString();
+    }
+    
+    // Event listeners for cost calculation
+    daysToStaySelect.addEventListener('change', updateCost);
+    groupSizeSelect.addEventListener('change', updateCost);
+    
+    // Form validation
+    form.addEventListener('submit', function(e) {
+        const agreeTerms = document.getElementById('agreeBookingTerms').checked;
+        const arrivalDate = arrivalDateInput.value;
+        const daysToStay = daysToStaySelect.value;
+        
+        if (!agreeTerms) {
+            e.preventDefault();
+            alert('Please agree to the booking terms and conditions.');
+            return false;
+        }
+        
+        if (!arrivalDate) {
+            e.preventDefault();
+            alert('Please select your arrival date.');
+            arrivalDateInput.focus();
+            return false;
+        }
+        
+        if (!daysToStay) {
+            e.preventDefault();
+            alert('Please select the duration of your tour.');
+            daysToStaySelect.focus();
+            return false;
+        }
+        
+        // Check if arrival date is not in the past
+        const selectedDate = new Date(arrivalDate);
+        const currentDate = new Date();
+        currentDate.setHours(0, 0, 0, 0);
+        
+        if (selectedDate < currentDate) {
+            e.preventDefault();
+            alert('Please select a future date for your arrival.');
+            arrivalDateInput.focus();
+            return false;
+        }
+        
+        // Show loading state
+        const submitBtn = document.getElementById('submitBooking');
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending Request...';
+        submitBtn.disabled = true;
+        
+        return true;
+    });
+    
+    // Phone number formatting
+    const phoneInput = document.querySelector('input[name="phone"]');
+    phoneInput.addEventListener('input', function() {
+        let value = this.value.replace(/\D/g, '');
+        if (value.length > 10) {
+            value = value.slice(0, 10);
+        }
+        this.value = value;
+    });
+    
+    // Initial cost calculation
+    updateCost();
+});
+</script>
+{% endblock %}

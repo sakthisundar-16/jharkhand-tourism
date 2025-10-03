@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5 pt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header text-center bg-primary text-white">
+                    <h4><i class="fas fa-user"></i> Tourist Login</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('login_tourist') }}">
+                        <input type="hidden" name="user_type" value="tourist">
+
+                        <div class="mb-3">
+                            <label class="form-label">Username</label>
+                            <input type="text" class="form-control" name="username" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <input type="password" class="form-control" name="password" required>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-sign-in-alt"></i> Login as Tourist
+                        </button>
+                    </form>
+
+                    <hr>
+                    <div class="text-center">
+                        <p class="mb-2">Don't have an account?</p>
+                        <a href="{{ url_for('register_tourist') }}" class="btn btn-outline-success">
+                            <i class="fas fa-user-plus"></i> Register as Tourist
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

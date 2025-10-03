@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5 pt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+            <div class="card border-danger">
+                <div class="card-body">
+                    <i class="fas fa-exclamation-triangle fa-5x text-danger mb-4"></i>
+                    <h3 class="text-danger mb-3">Access Denied</h3>
+                    <p class="text-muted mb-4">You don't have permission to access this page.</p>
+                    
+                    {% if session.user_type == 'tourist' %}
+                        <a href="{{ url_for('tourist_dashboard') }}" class="btn btn-success">
+                            <i class="fas fa-compass"></i> Go to Tourist Dashboard
+                        </a>
+                    {% elif session.user_type == 'guide' %}
+                        <a href="{{ url_for('guide_dashboard') }}" class="btn btn-info">
+                            <i class="fas fa-map-marked-alt"></i> Go to Guide Dashboard
+                        </a>
+                    {% elif session.user_type == 'admin' %}
+                        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-warning">
+                            <i class="fas fa-cog"></i> Go to Admin Dashboard
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('login') }}" class="btn btn-primary">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
