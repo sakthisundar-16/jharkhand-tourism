@@ -26,6 +26,7 @@ def require_user_type(user_type):
 
 app = Flask(__name__)
 app.config.from_object(Config)
+mysql = MySQL(app)
 
 # File upload configuration
 UPLOAD_FOLDER = 'static/uploads'
@@ -882,6 +883,13 @@ def debug_guide_profile():
     return "Database connection failed"
 
 # Additional convenience routes for Jharkhand Tourism
+@app.route('/test_db')
+def test_db():
+    cur = mysql.connection.cursor()
+    cur.execute("SELECT DATABASE()")
+    result = cur.fetchone()
+    cur.close()
+    return f"Connected to: {result[0]}"
 @app.route('/login_tourist')
 def old_login_tourist():
     """Backward compatibility route"""
