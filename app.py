@@ -6,6 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from datetime import datetime, timedelta
 from config import Config
+from app import app as application
 
 from functools import wraps
 def require_user_type(user_type):
